@@ -23,6 +23,7 @@ where
 import qualified Domain.Types.Person as Person
 import Kernel.External.Encryption
 import qualified Kernel.External.FCM.Types as FCM
+import qualified Kernel.External.Maps as Maps
 import Kernel.Prelude
 import Kernel.Storage.Esqueleto (runInReplica, runTransaction)
 import Kernel.Storage.Esqueleto.Config (EsqDBReplicaFlow)
@@ -39,7 +40,8 @@ data UpdateProfileReq = UpdateProfileReq
     middleName :: Maybe Text,
     lastName :: Maybe Text,
     email :: Maybe Text,
-    deviceToken :: Maybe FCM.FCMRecipientToken
+    deviceToken :: Maybe FCM.FCMRecipientToken,
+    language :: Maybe Maps.Language
   }
   deriving (Generic, ToJSON, FromJSON, ToSchema)
 
@@ -62,4 +64,5 @@ updatePerson personId req = do
       (req.lastName)
       mbEncEmail
       (req.deviceToken)
+      (req.language)
   pure APISuccess.Success

@@ -17,6 +17,7 @@ module Domain.Action.Beckn.Select where
 
 import qualified Beckn.Types.Core.Taxi.Common.Address as BA
 import qualified Data.Map as M
+import qualified Data.Text as T
 import Data.Time.Clock (addUTCTime)
 import qualified Domain.Types.Merchant as DM
 import qualified Domain.Types.SearchRequest as DSearchReq
@@ -55,7 +56,8 @@ data DSelectReq = DSelectReq
     pickupAddress :: Maybe BA.Address,
     dropAddrress :: Maybe BA.Address,
     variant :: Variant,
-    autoAssignEnabled :: Bool
+    autoAssignEnabled :: Bool,
+    customerLanguage :: Maybe Maps.Language
   }
 
 type LanguageDictionary = M.Map Maps.Language DSearchReq.SearchRequest
@@ -63,8 +65,8 @@ type LanguageDictionary = M.Map Maps.Language DSearchReq.SearchRequest
 handler :: Id DM.Merchant -> DSelectReq -> Flow ()
 handler merchantId sReq = do
   sessiontoken <- generateGUIDText
-  fromLocation <- buildSearchReqLocation merchantId sessiontoken sReq.pickupAddress sReq.pickupLocation
-  toLocation <- buildSearchReqLocation merchantId sessiontoken sReq.dropAddrress sReq.dropLocation
+  fromLocation <- buildSearchReqLocation merchantId sessiontoken sReq.pickupAddress sReq.customerLanguage sReq.pickupLocation
+  toLocation <- buildSearchReqLocation merchantId sessiontoken sReq.dropAddrress sReq.customerLanguage sReq.dropLocation
   mbDistRes <- CD.getCacheDistance sReq.transactionId
   logInfo $ "Fetching cached distance and duration" <> show mbDistRes
   (distance, duration) <-
@@ -150,8 +152,32 @@ buildSearchRequest from to merchantId sReq distance duration = do
         autoAssignEnabled = sReq.autoAssignEnabled
       }
 
-buildSearchReqLocation :: (EncFlow m r, CacheFlow m r, EsqDBFlow m r, CoreMetrics m) => Id DM.Merchant -> Text -> Maybe BA.Address -> LatLong -> m DLoc.SearchReqLocation
-buildSearchReqLocation merchantId sessionToken _ latLong@Maps.LatLong {..} = do
+buildSearchReqLocation :: (EncFlow m r, CacheFlow m r, EsqDBFlow m r, CoreMetrics m) => Id DM.Merchant -> Text -> Maybe BA.Address -> Maybe Maps.Language -> LatLong -> m DLoc.SearchReqLocation
+buildSearchReqLocation merchantId sessionToken address customerLanguage latLong@Maps.LatLong {..} = case address of
+  Just loc -> do
+    if customerLanguage /= Just Maps.ENGLISH
+      then getAddressByGetPlaceName merchantId sessionToken latLong
+      else do
+        let Address {..} =
+              Address
+                { areaCode = loc.area_code,
+                  street = loc.street,
+                  city = loc.city,
+                  state = loc.state,
+                  country = loc.country,
+                  building = loc.building,
+                  area = loc.ward,
+                  full_address = decodeAddress loc
+                }
+        id <- Id <$> generateGUID
+        now <- getCurrentTime
+        let createdAt = now
+            updatedAt = now
+        pure DLoc.SearchReqLocation {..}
+  Nothing -> getAddressByGetPlaceName merchantId sessionToken latLong
+
+getAddressByGetPlaceName :: (EncFlow m r, CacheFlow m r, EsqDBFlow m r, CoreMetrics m) => Id DM.Merchant -> Text -> LatLong -> m DLoc.SearchReqLocation
+getAddressByGetPlaceName merchantId sessionToken latLong = do
   pickupRes <-
     Maps.getPlaceName merchantId $
       Maps.GetPlaceNameReq
@@ -164,4 +190,25 @@ buildSearchReqLocation merchantId sessionToken _ latLong@Maps.LatLong {..} = do
   now <- getCurrentTime
   let createdAt = now
       updatedAt = now
-  pure DLoc.SearchReqLocation {..}
+  pure DLoc.SearchReqLocation {lat = latLong.lat, lon = latLong.lon, ..}
+
+decodeAddress :: BA.Address -> Maybe Text
+decodeAddress address = do
+  if removeSpace (fromJust address.city) == "" && removeSpace (fromJust address.locality) == "" && removeSpace (fromJust address.street) == "" && removeSpace (fromJust address.door) == "" && removeSpace (fromJust address.building) == ""
+    then (address.state) <> Just " " <> (address.area_code) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+    else
+      if removeSpace (fromJust address.locality) == "" && removeSpace (fromJust address.street) == "" && removeSpace (fromJust address.door) == "" && removeSpace (fromJust address.building) == ""
+        then (address.city) <> Just ", " <> (address.state) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+        else
+          if removeSpace (fromJust address.street) == "" && removeSpace (fromJust address.door) == "" && removeSpace (fromJust address.building) == ""
+            then (address.locality) <> Just ", " <> (address.city) <> Just ", " <> (address.state) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+            else
+              if removeSpace (fromJust address.door) == "" && removeSpace (fromJust address.building) == ""
+                then (address.street) <> Just ", " <> (address.locality) <> Just ", " <> (address.city) <> Just ", " <> (address.state) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+                else
+                  if removeSpace (fromJust address.door) == ""
+                    then (address.building) <> Just ", " <> (address.street) <> Just ", " <> (address.locality) <> Just ", " <> (address.city) <> Just ", " <> (address.state) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+                    else (address.door) <> Just ", " <> (address.building) <> Just ", " <> (address.street) <> Just ", " <> (address.locality) <> Just ", " <> (address.city) <> Just ", " <> (address.state) <> Just " " <> (address.area_code) <> Just ", " <> (address.country)
+
+removeSpace :: Text -> Text
+removeSpace = T.replace " " ""

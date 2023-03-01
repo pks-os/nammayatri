@@ -30,6 +30,7 @@ import qualified Domain.Types.Quote as DQuote
 import qualified Domain.Types.SearchRequest as DSearchReq
 import Domain.Types.VehicleVariant (VehicleVariant)
 import Environment
+import qualified Kernel.External.Maps as Maps
 import Kernel.Prelude
 import Kernel.Storage.Esqueleto (runInReplica)
 import qualified Kernel.Storage.Esqueleto as Esq
@@ -39,6 +40,7 @@ import Kernel.Types.Id
 import Kernel.Utils.Common
 import SharedLogic.Estimate (checkIfEstimateCancelled)
 import qualified Storage.Queries.Estimate as QEstimate
+import qualified Storage.Queries.Person as QPerson
 import qualified Storage.Queries.Person.PersonFlowStatus as QPFS
 import qualified Storage.Queries.Quote as QQuote
 import qualified Storage.Queries.SearchRequest as QSearchRequest
@@ -49,7 +51,8 @@ data DSelectRes = DSelectRes
     estimateId :: Id DEstimate.Estimate,
     providerId :: Text,
     providerUrl :: BaseUrl,
-    variant :: VehicleVariant
+    variant :: VehicleVariant,
+    customerLanguage :: Maybe Maps.Language
   }
 
 newtype DEstimateSelectReq = DEstimateSelect
@@ -68,6 +71,7 @@ select :: Id DPerson.Person -> Id DEstimate.Estimate -> Flow DSelectRes
 select personId estimateId = do
   now <- getCurrentTime
   estimate <- QEstimate.findById estimateId >>= fromMaybeM (EstimateDoesNotExist estimateId.getId)
+  person <- QPerson.findById personId >>= fromMaybeM (PersonDoesNotExist personId.getId)
   checkIfEstimateCancelled estimate.id estimate.status
   let searchRequestId = estimate.requestId
   searchRequest <- QSearchRequest.findByPersonId personId searchRequestId >>= fromMaybeM (SearchRequestDoesNotExist personId.getId)
@@ -81,6 +85,7 @@ select personId estimateId = do
       { providerId = estimate.providerId,
         providerUrl = estimate.providerUrl,
         variant = estimate.vehicleVariant,
+        customerLanguage = person.language,
         ..
       }
 

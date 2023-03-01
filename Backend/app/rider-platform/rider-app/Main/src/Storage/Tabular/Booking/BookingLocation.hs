@@ -54,7 +54,7 @@ instance TEntityKey BookingLocationT where
 
 instance TType BookingLocationT Domain.BookingLocation where
   fromTType BookingLocationT {..} = do
-    let address = Domain.LocationAddress {..}
+    let address = Domain.LocationAddress {ward = Nothing, placeId = Nothing, ..}
     return $
       Domain.BookingLocation
         { id = Id id,
