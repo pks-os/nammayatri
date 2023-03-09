@@ -32,7 +32,7 @@ token: {{token}}
   "email" : "xyzss@gmail.com",
   "mobileNumber" : "9876543200",
   "mobileCountryCode" : "+91",
-  "passwordHash" : "juspay@adminadad"
+  "password" : "juspay@adminadad"
 }
 
 ###

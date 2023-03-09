@@ -56,20 +56,6 @@ x-client-version: 1.0.0
 
 ###
 
-# @name onboardDriver
-POST {{driver-offer-bpp-host}}/ui/driver/register
-content-type: application/json
-token: {{token}}
-
-{
-  "driverLicenseNumber" : "KA0219980008798",
-  "operatingCity" : "BANGALORE",
-  "driverDateOfBirth" : "2000-04-12 15:15:42.233691+00",
-  "vehicleRegistrationCertNumber" : "KA502922"
-}
-
-###
-
 # @name getStats
 GET {{driver-offer-bpp-host}}/ui/driver/profile/stats?day={{today}}
 content-type: application/json

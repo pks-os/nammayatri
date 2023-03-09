@@ -129,20 +129,20 @@ token: {{token1}}
 content-type: application/json
 
 {
-    "offeredFare": 30.5,
+    "offeredFare": 30,
     "searchRequestId": "{{nearbySearchRequest1.response.body.searchRequests[0].searchRequestId}}"
 }
 
 ###
 
-
+# ENDPOINT CHANGED
 # @name selectedQuotes
 GET {{app-host}}/rideSearch/quotes/{{estimateId}}/select/list
 content-type: application/json
 token: {{app-token}}
 
 ###
-
+# ENDPOINT CHANGED
 # @name initQuote
 @selectedQuoteId = {{selectedQuotes.response.body.selectedQuotes[0].id}}
 
@@ -156,7 +156,7 @@ token: {{app-token}}
 }
 
 ###
-
+# ENDPOINT CHANGED
 # @name confirmQuote
 @bookingId = {{initQuote.response.body.bookingId}}
 
@@ -187,7 +187,7 @@ token: {{token2}}
 content-type: application/json
 
 {
-    "offeredFare": 30.5,
+    "offeredFare": 30,
     "searchRequestId": "{{nearbySearchRequest2.response.body.searchRequests[0].searchRequestId}}"
 }
 ###

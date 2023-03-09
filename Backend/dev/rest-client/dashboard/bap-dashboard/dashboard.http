@@ -30,10 +30,10 @@ token: {{token}}
   "firstName" : "unknown",
   "lastName" : "known",
   "roleId" : "508a0bac-258d-44a6-ac55-aef57ab87a76",
-  "email" : "xyz@gmail.com",
-  "mobileNumber" : "9876543200",
+  "email" : "xya@gmail.com",
+  "mobileNumber" : "9876543201",
   "mobileCountryCode" : "+91",
-  "passwordHash" : "juspay@adminadad"
+  "password" : "juspay@adminadad"
 }
 
 
