@@ -98,7 +98,7 @@ type API =
                :> TokenAuth
                :> "start"
                :> ReqBody '[JSON] Ride.OTPRideReq
-               :> Post '[JSON] APISuccess
+               :> Post '[JSON] Ride.DriverRideRes
          )
 
 handler :: FlowServer API

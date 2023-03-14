@@ -97,7 +97,6 @@ buildOnUpdateMessage RideAssignedBuildReq {..} = do
                       }
                 },
             vehicle = veh,
-            state = RideAssignedOU.FulfillmentState "TRIP_ASSIGNED",
             ..
           }
   return $
