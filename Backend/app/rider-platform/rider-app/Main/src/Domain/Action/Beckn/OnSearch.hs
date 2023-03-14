@@ -120,7 +120,7 @@ newtype OneWayQuoteDetails = OneWayQuoteDetails
   }
 
 newtype OneWaySpecialZoneQuoteDetails = OneWaySpecialZoneQuoteDetails
-  { quoteType :: Text
+  { quoteId :: Text
   }
 
 data RentalQuoteDetails = RentalQuoteDetails

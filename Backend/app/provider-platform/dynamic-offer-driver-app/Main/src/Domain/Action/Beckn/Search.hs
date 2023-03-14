@@ -45,6 +45,8 @@ import qualified Storage.Queries.SearchRequestSpecialZone as QSearchRequestSpeci
 import Tools.Error
 import qualified Tools.Maps as Maps
 import qualified Tools.Metrics.ARDUBPPMetrics as Metrics
+import qualified Storage.Queries.Location.SpecialLocation as QSpecialLocation
+import qualified Domain.Types.Location.SpecialLocation as DSpecialLocation
 
 data DSearchReq = DSearchReq
   { messageId :: Text,
@@ -123,8 +125,9 @@ data DistanceAndDuration = DistanceAndDuration
     duration :: Seconds
   }
 
-isSpecialZone :: Bool
-isSpecialZone = True
+isSpecialZone :: [DSpecialLocation.SpecialLocation] -> Bool
+isSpecialZone [] = False
+isSpecialZone (_:_) = True  
 
 getDistanceAndDuration :: Id DM.Merchant -> DLoc.SearchReqLocation -> DLoc.SearchReqLocation -> Maybe Maps.RouteInfo -> Flow DistanceAndDuration
 getDistanceAndDuration merchantId fromLocation toLocation routeInfo = case routeInfo of
@@ -157,9 +160,10 @@ handler merchantId sReq = do
   logDebug $ "distance: " <> show result.distance
   allFarePolicies <- FarePolicyS.findAllByMerchantId org.id (Just result.distance)
   let farePolicies = filter (checkTripConstraints result.distance) allFarePolicies
+  specialLocations <- QSpecialLocation.findSpecialLocationByLatLong pickupLatLong
 
   (quotes :: Maybe [SpecialZoneQuoteInfo], estimates' :: Maybe [EstimateItem]) <-
-    if isSpecialZone
+    if isSpecialZone specialLocations
       then do
         whenJustM
           (QSearchRequestSpecialZone.findByMsgIdAndBapIdAndBppId sReq.messageId sReq.bapId merchantId)

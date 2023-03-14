@@ -23,11 +23,11 @@ import Kernel.Utils.GenericPretty (PrettyShow)
 
 data SpecialZoneQuote = SpecialZoneQuote
   { id :: Id SpecialZoneQuote, --not used in domain layer
-    quoteType :: Text
+    quoteId :: Text
   }
   deriving (Generic, Show, PrettyShow)
 
 newtype SpecialZoneQuoteAPIEntity = SpecialZoneQuoteAPIEntity
-  { quoteType :: Text
+  { quoteId :: Text
   }
   deriving (Generic, FromJSON, ToJSON, Show, ToSchema)

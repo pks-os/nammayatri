@@ -123,7 +123,7 @@ confirm personId quoteId = do
       DQuote.OneWayDetails _ -> ConfirmOneWayDetails
       DQuote.RentalDetails RentalSlab {..} -> ConfirmRentalDetails $ RentalSlabAPIEntity {..}
       DQuote.DriverOfferDetails driverOffer -> ConfirmAutoDetails driverOffer.bppQuoteId
-      DQuote.OneWaySpecialZoneDetails details -> ConfirmOneWaySpecialZoneDetails details.quoteType
+      DQuote.OneWaySpecialZoneDetails details -> ConfirmOneWaySpecialZoneDetails details.quoteId
 
 buildBookingLocation :: MonadGuid m => UTCTime -> DSRLoc.SearchReqLocation -> m DBL.BookingLocation
 buildBookingLocation now DSRLoc.SearchReqLocation {..} = do

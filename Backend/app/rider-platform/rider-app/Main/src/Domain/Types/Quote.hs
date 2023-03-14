@@ -64,7 +64,7 @@ newtype OneWayQuoteDetails = OneWayQuoteDetails
   deriving (Generic, FromJSON, ToJSON, Show, ToSchema, PrettyShow)
 
 -- newtype OneWaySpecialZoneQuoteDetails = OneWaySpecialZoneQuoteDetails
---   { quoteType :: Text
+--   { quoteId :: Text
 --   }
 --   deriving (Generic, FromJSON, ToJSON, Show, ToSchema, PrettyShow)
 
@@ -106,7 +106,7 @@ newtype OneWayQuoteAPIDetails = OneWayQuoteAPIDetails
   deriving (Generic, FromJSON, ToJSON, Show, ToSchema)
 
 newtype OneWaySpecialZoneQuoteAPIDetails = OneWaySpecialZoneQuoteAPIDetails
-  { quoteType :: Text
+  { quoteId :: Text
   }
   deriving (Generic, FromJSON, ToJSON, Show, ToSchema)
 

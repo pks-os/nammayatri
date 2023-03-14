@@ -31,7 +31,7 @@ mkPersist
   [defaultQQ|
     SpecialZoneQuoteT sql=special_zone_quote
       id Text
-      quoteType Text
+      quoteId Text
       Primary id
       deriving Generic
     |]
