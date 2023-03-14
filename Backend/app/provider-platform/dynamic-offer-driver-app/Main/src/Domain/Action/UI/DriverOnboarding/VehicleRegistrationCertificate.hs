@@ -32,6 +32,7 @@ import Domain.Types.DriverOnboarding.Error
 import qualified Domain.Types.DriverOnboarding.IdfyVerification as Domain
 import qualified Domain.Types.DriverOnboarding.Image as Image
 import qualified Domain.Types.DriverOnboarding.VehicleRegistrationCertificate as Domain
+import Domain.Types.DriverOnboardingConfig
 import qualified Domain.Types.Merchant as DM
 import qualified Domain.Types.Person as Person
 import Environment
@@ -53,6 +54,7 @@ import qualified Storage.Queries.DriverOnboarding.IdfyVerification as IVQuery
 import qualified Storage.Queries.DriverOnboarding.Image as ImageQuery
 import qualified Storage.Queries.DriverOnboarding.OperatingCity as QCity
 import qualified Storage.Queries.DriverOnboarding.VehicleRegistrationCertificate as RCQuery
+import qualified Storage.Queries.DriverOnboardingConfig as DOConfig
 import qualified Storage.Queries.Person as Person
 import Tools.Error
 import qualified Tools.Verification as Verification
@@ -93,7 +95,7 @@ verifyRC isDashboard mbMerchant personId req@DriverRCReq {..} = do
     Nothing -> QCity.findEnabledCityByName $ T.toLower req.operatingCity
   when (null operatingCity') $
     throwError $ InvalidOperatingCity req.operatingCity
-  configs <- asks (.driverOnboardingConfigs)
+  configs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
   when
     ( isNothing dateOfRegistration && configs.checkImageExtraction
         && (not isDashboard || configs.checkImageExtractionForDashboard)
@@ -147,7 +149,7 @@ verifyRCFlow :: Person.Person -> Text -> Id Image.Image -> Maybe UTCTime -> Flow
 verifyRCFlow person rcNumber imageId dateOfRegistration = do
   now <- getCurrentTime
   encryptedRC <- encrypt rcNumber
-  configs <- asks (.driverOnboardingConfigs)
+  configs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
   let imageExtractionValidation =
         if isNothing dateOfRegistration && configs.checkImageExtraction
           then Domain.Success
@@ -190,8 +192,7 @@ onVerifyRC verificationReq output = do
     else do
       now <- getCurrentTime
       id <- generateGUID
-      driverOnboardingConfigs <- asks (.driverOnboardingConfigs)
-
+      driverOnboardingConfigs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
       mEncryptedRC <- encrypt `mapM` output.registration_number
       let mbFitnessEpiry = convertTextToUTC output.fitness_upto
       let mVehicleRC = createRC driverOnboardingConfigs output id verificationReq.documentImageId1 now <$> mEncryptedRC <*> mbFitnessEpiry
@@ -226,7 +227,7 @@ onVerifyRC verificationReq output = do
           }
 
 createRC ::
-  DriverOnboardingConfigs ->
+  DriverOnboardingConfig ->
   Idfy.RCVerificationOutput ->
   Id Domain.VehicleRegistrationCertificate ->
   Id Image.Image ->
@@ -259,7 +260,7 @@ createRC configs output id imageId now edl expiry = do
       updatedAt = now
     }
 
-validateRCStatus :: DriverOnboardingConfigs -> UTCTime -> Maybe UTCTime -> Maybe Text -> UTCTime -> Maybe Int -> Domain.VerificationStatus
+validateRCStatus :: DriverOnboardingConfig -> UTCTime -> Maybe UTCTime -> Maybe Text -> UTCTime -> Maybe Int -> Domain.VerificationStatus
 validateRCStatus configs expiry insuranceValidity cov now capacity = do
   let validCOV = (not configs.checkRCVehicleClass) || maybe False (isValidCOVRC capacity) cov
   let validInsurance = (not configs.checkRCInsuranceExpiry) || maybe False (now <) insuranceValidity

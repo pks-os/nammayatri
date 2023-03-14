@@ -71,7 +71,6 @@ data AppCfg = AppCfg
     minimumDriverRatesCount :: Int,
     disableSignatureAuth :: Bool,
     smsCfg :: SmsConfig,
-    driverOnboardingConfigs :: DriverOnboardingConfigs,
     slackCfg :: SlackConfig,
     apiRateLimitOptions :: APIRateLimitOptions,
     googleTranslateUrl :: BaseUrl,
@@ -132,7 +131,6 @@ data AppEnv = AppEnv
     shortDurationRetryCfg :: RetryCfg,
     longDurationRetryCfg :: RetryCfg,
     smsCfg :: SmsConfig,
-    driverOnboardingConfigs :: DriverOnboardingConfigs,
     slackCfg :: SlackConfig,
     apiRateLimitOptions :: APIRateLimitOptions,
     googleTranslateUrl :: BaseUrl,
@@ -165,21 +163,6 @@ data AppEnv = AppEnv
     minTripDistanceForReferralCfg :: Maybe HighPrecMeters
   }
   deriving (Generic)
-
-data DriverOnboardingConfigs = DriverOnboardingConfigs
-  { onboardingTryLimit :: Int,
-    onboardingRetryTimeinHours :: Int,
-    onboardSupportSmsTemplate :: Text,
-    checkRCInsuranceExpiry :: Bool,
-    checkRCExpiry :: Bool,
-    checkRCVehicleClass :: Bool,
-    checkDLExpiry :: Bool,
-    checkDLVehicleClass :: Bool,
-    checkImageExtraction :: Bool,
-    checkImageExtractionForDashboard :: Bool,
-    validDLVehicleClassInfixes :: [Text]
-  }
-  deriving (Generic, FromDhall)
 
 instance AuthenticatingEntity AppEnv where
   getSigningKey = (.signingKey)

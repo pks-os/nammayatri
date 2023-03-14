@@ -32,6 +32,7 @@ import qualified Domain.Types.DriverOnboarding.DriverLicense as Domain
 import Domain.Types.DriverOnboarding.Error
 import qualified Domain.Types.DriverOnboarding.IdfyVerification as Domain
 import qualified Domain.Types.DriverOnboarding.Image as Image
+import Domain.Types.DriverOnboardingConfig
 import qualified Domain.Types.Merchant as DM
 import qualified Domain.Types.Person as Person
 import Environment
@@ -53,6 +54,7 @@ import qualified Storage.Queries.DriverOnboarding.DriverLicense as Query
 import qualified Storage.Queries.DriverOnboarding.IdfyVerification as IVQuery
 import qualified Storage.Queries.DriverOnboarding.Image as ImageQuery
 import qualified Storage.Queries.DriverOnboarding.OperatingCity as QCity
+import qualified Storage.Queries.DriverOnboardingConfig as DOConfig
 import qualified Storage.Queries.Person as Person
 import Tools.Error
 import qualified Tools.Verification as Verification
@@ -101,8 +103,7 @@ verifyDL isDashboard mbMerchant personId req@DriverDLReq {..} = do
     Nothing -> QCity.findEnabledCityByName $ T.toLower req.operatingCity
   when (null operatingCity') $
     throwError $ InvalidOperatingCity req.operatingCity
-  configs <- asks (.driverOnboardingConfigs)
-
+  configs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
   when
     ( isNothing dateOfIssue && configs.checkImageExtraction
         && (not isDashboard || configs.checkImageExtractionForDashboard)
@@ -146,7 +147,7 @@ verifyDL isDashboard mbMerchant personId req@DriverDLReq {..} = do
 verifyDLFlow :: Person.Person -> Text -> UTCTime -> Id Image.Image -> Maybe (Id Image.Image) -> Maybe UTCTime -> Flow ()
 verifyDLFlow person dlNumber driverDateOfBirth imageId1 imageId2 dateOfIssue = do
   now <- getCurrentTime
-  configs <- asks (.driverOnboardingConfigs)
+  configs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
   let imageExtractionValidation =
         if isNothing dateOfIssue && configs.checkImageExtraction
           then Domain.Success
@@ -190,8 +191,7 @@ onVerifyDL verificationReq output = do
     else do
       now <- getCurrentTime
       id <- generateGUID
-      configs <- asks (.driverOnboardingConfigs)
-
+      configs <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
       mEncryptedDL <- encrypt `mapM` output.id_number
       let mLicenseExpiry = convertTextToUTC (output.t_validity_to <|> output.nt_validity_to)
       let mDriverLicense = createDL configs person.id output id verificationReq.documentImageId1 verificationReq.documentImageId2 now <$> mEncryptedDL <*> mLicenseExpiry
@@ -206,7 +206,7 @@ onVerifyDL verificationReq output = do
         Nothing -> return Ack
 
 createDL ::
-  DriverOnboardingConfigs ->
+  DriverOnboardingConfig ->
   Id Person.Person ->
   Idfy.DLVerificationOutput ->
   Id Domain.DriverLicense ->
@@ -237,7 +237,7 @@ createDL configs driverId output id imageId1 imageId2 now edl expiry = do
       consentTimestamp = now
     }
 
-validateDLStatus :: DriverOnboardingConfigs -> UTCTime -> [Text] -> UTCTime -> Domain.VerificationStatus
+validateDLStatus :: DriverOnboardingConfig -> UTCTime -> [Text] -> UTCTime -> Domain.VerificationStatus
 validateDLStatus configs expiry cov now = do
   let validCOVs = configs.validDLVehicleClassInfixes
   let isCOVValid = (not configs.checkDLVehicleClass) || foldr' (\x acc -> isValidCOVDL validCOVs x || acc) False cov

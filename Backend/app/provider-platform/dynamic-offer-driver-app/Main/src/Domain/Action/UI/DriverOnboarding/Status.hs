@@ -25,6 +25,7 @@ import qualified Domain.Types.DriverOnboarding.DriverLicense as DL
 import qualified Domain.Types.DriverOnboarding.IdfyVerification as IV
 import qualified Domain.Types.DriverOnboarding.Image as Image
 import qualified Domain.Types.DriverOnboarding.VehicleRegistrationCertificate as RC
+import Domain.Types.DriverOnboardingConfig
 import qualified Domain.Types.Merchant as DM
 import qualified Domain.Types.Person as SP
 import qualified Domain.Types.Vehicle as Vehicle
@@ -36,7 +37,7 @@ import qualified Kernel.Storage.Esqueleto as DB
 import Kernel.Storage.Esqueleto.Transactionable (runInReplica)
 import Kernel.Types.Common
 import Kernel.Types.Error
-import Kernel.Types.Id (Id)
+import Kernel.Types.Id (Id, getId)
 import Kernel.Utils.Error
 import qualified Storage.CachedQueries.DriverInformation as DIQuery
 import qualified Storage.Queries.DriverOnboarding.DriverLicense as DLQuery
@@ -44,6 +45,7 @@ import qualified Storage.Queries.DriverOnboarding.DriverRCAssociation as DRAQuer
 import qualified Storage.Queries.DriverOnboarding.IdfyVerification as IVQuery
 import qualified Storage.Queries.DriverOnboarding.Image as IQuery
 import qualified Storage.Queries.DriverOnboarding.VehicleRegistrationCertificate as RCQuery
+import qualified Storage.Queries.DriverOnboardingConfig as DOConfig
 import Storage.Queries.Person as Person
 import qualified Storage.Queries.Person as QPerson
 import qualified Storage.Queries.Vehicle as VQuery
@@ -64,33 +66,33 @@ data StatusRes = StatusRes
 statusHandler :: Id SP.Person -> Flow StatusRes
 statusHandler personId = do
   person <- runInReplica $ QPerson.findById personId >>= fromMaybeM (PersonDoesNotExist personId.getId)
-
-  (dlStatus, mDL) <- getDLAndStatus personId
-  (rcStatus, mRC) <- getRCAndStatus personId
+  config <- DOConfig.findDriverOnboardingConfigByMerchantId person.merchantId >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId person.merchantId))
+  (dlStatus, mDL) <- getDLAndStatus personId config
+  (rcStatus, mRC) <- getRCAndStatus personId config
 
   when (dlStatus == VALID && rcStatus == VALID) $
     enableDriver personId person.merchantId mRC mDL
   return $ StatusRes {dlVerificationStatus = dlStatus, rcVerificationStatus = rcStatus}
 
-getDLAndStatus :: Id SP.Person -> Flow (ResponseStatus, Maybe DL.DriverLicense)
-getDLAndStatus driverId = do
+getDLAndStatus :: Id SP.Person -> DriverOnboardingConfig -> Flow (ResponseStatus, Maybe DL.DriverLicense)
+getDLAndStatus driverId config = do
   mDriverLicense <- DLQuery.findByDriverId driverId
   status <-
     case mDriverLicense of
       Just driverLicense -> return $ mapStatus driverLicense.verificationStatus
       Nothing -> do
-        checkIfInVerification driverId Image.DriverLicense
+        checkIfInVerification driverId Image.DriverLicense config
   return (status, mDriverLicense)
 
-getRCAndStatus :: Id SP.Person -> Flow (ResponseStatus, Maybe RC.VehicleRegistrationCertificate)
-getRCAndStatus driverId = do
+getRCAndStatus :: Id SP.Person -> DriverOnboardingConfig -> Flow (ResponseStatus, Maybe RC.VehicleRegistrationCertificate)
+getRCAndStatus driverId config = do
   mDriverAssociation <- DRAQuery.getActiveAssociationByDriver driverId
   case mDriverAssociation of
     Just driverAssociation -> do
       vehicleRC <- RCQuery.findById driverAssociation.rcId >>= fromMaybeM (InternalError "Associated rc not found")
       return (mapStatus vehicleRC.verificationStatus, Just vehicleRC)
     Nothing -> do
-      status <- checkIfInVerification driverId Image.VehicleRegistrationCertificate
+      status <- checkIfInVerification driverId Image.VehicleRegistrationCertificate config
       return (status, Nothing)
 
 mapStatus :: IV.VerificationStatus -> ResponseStatus
@@ -99,12 +101,11 @@ mapStatus = \case
   IV.VALID -> VALID
   IV.INVALID -> INVALID
 
-checkIfInVerification :: Id SP.Person -> Image.ImageType -> Flow ResponseStatus
-checkIfInVerification driverId docType = do
+checkIfInVerification :: Id SP.Person -> Image.ImageType -> DriverOnboardingConfig -> Flow ResponseStatus
+checkIfInVerification driverId docType config = do
   verificationReq <- IVQuery.findLatestByDriverIdAndDocType driverId docType
-  images <- IQuery.findRecentByPersonIdAndImageType driverId docType
-  onboardingTryLimit <- asks (.driverOnboardingConfigs.onboardingTryLimit)
-  pure $ verificationStatus onboardingTryLimit (length images) verificationReq
+  images <- IQuery.findRecentByPersonIdAndImageType driverId docType config
+  pure $ verificationStatus (config.onboardingTryLimit) (length images) verificationReq
 
 verificationStatus :: Int -> Int -> Maybe IV.IdfyVerification -> ResponseStatus
 verificationStatus onboardingTryLimit imagesNum verificationReq =

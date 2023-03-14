@@ -17,6 +17,7 @@ module SharedLogic.DriverOnboarding where
 import qualified Data.Text as T
 import Domain.Types.DriverOnboarding.Error
 import qualified Domain.Types.DriverOnboarding.Image as Domain
+import Domain.Types.DriverOnboardingConfig
 import Environment
 import qualified Kernel.External.Slack.Flow as SF
 import Kernel.Prelude
@@ -29,10 +30,10 @@ notifyErrorToSupport ::
   Maybe T.Text ->
   T.Text ->
   [Maybe DriverOnboardingError] ->
+  DriverOnboardingConfig ->
   Flow ()
-notifyErrorToSupport driverPhone orgName errs = do
+notifyErrorToSupport driverPhone orgName errs DriverOnboardingConfig {..} = do
   let reasons = catMaybes $ catMaybes $ toMsg <$> errs
-  onboardSupportSmsTemplate <- asks (.driverOnboardingConfigs.onboardSupportSmsTemplate)
   let message =
         T.replace "{#reasons#}" (show reasons) $
           T.replace "{#driver-phone#}" (fromMaybe "" driverPhone) $

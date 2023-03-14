@@ -18,13 +18,12 @@ module Storage.Queries.DriverOnboarding.Image where
 import qualified Data.Time as DT
 import Domain.Types.DriverOnboarding.Error
 import Domain.Types.DriverOnboarding.Image
+import Domain.Types.DriverOnboardingConfig
 import Domain.Types.Merchant
 import Domain.Types.Person (Person)
-import Environment
 import Kernel.Prelude
 import Kernel.Storage.Esqueleto as Esq
 import Kernel.Types.Common
-import Kernel.Types.Field
 import Kernel.Types.Id
 import Storage.Tabular.DriverOnboarding.Image
 
@@ -54,15 +53,14 @@ findImagesByPersonAndType merchantId personId imgType = do
 
 findRecentByPersonIdAndImageType ::
   ( Transactionable m,
-    MonadFlow m,
-    HasFlowEnv m r '["driverOnboardingConfigs" ::: DriverOnboardingConfigs]
+    MonadFlow m
   ) =>
   Id Person ->
   ImageType ->
+  DriverOnboardingConfig ->
   m [Image]
-findRecentByPersonIdAndImageType personId imgtype = do
-  DriverOnboardingConfigs {..} <- asks (.driverOnboardingConfigs)
-  let onBoardingRetryTimeinHours = intToNominalDiffTime onboardingRetryTimeinHours
+findRecentByPersonIdAndImageType personId imgtype DriverOnboardingConfig {..} = do
+  let onBoardingRetryTimeinHours = intToNominalDiffTime onboardingRetryTimeInHours
   now <- getCurrentTime
   findAll $ do
     images <- from $ table @ImageT

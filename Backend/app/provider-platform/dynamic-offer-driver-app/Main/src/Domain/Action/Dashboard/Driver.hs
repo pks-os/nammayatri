@@ -66,6 +66,7 @@ import qualified Storage.Queries.DriverOnboarding.DriverRCAssociation as QRCAsso
 import qualified Storage.Queries.DriverOnboarding.IdfyVerification as QIV
 import qualified Storage.Queries.DriverOnboarding.Image as QImage
 import qualified Storage.Queries.DriverOnboarding.Status as QDocStatus
+import qualified Storage.Queries.DriverOnboardingConfig as DOConfig
 import qualified Storage.Queries.DriverQuote as QDriverQuote
 import qualified Storage.Queries.DriverStats as QDriverStats
 import qualified Storage.Queries.Message.MessageReport as QMessage
@@ -82,9 +83,9 @@ driverDocumentsInfo :: ShortId DM.Merchant -> Flow Common.DriverDocumentsInfoRes
 driverDocumentsInfo merchantShortId = do
   merchant <- findMerchantByShortId merchantShortId
   now <- getCurrentTime
-  onboardingTryLimit <- asks (.driverOnboardingConfigs.onboardingTryLimit)
+  configs <- DOConfig.findDriverOnboardingConfigByMerchantId merchant.id >>= fromMaybeM (MerchantDriverOnboardingConfigNotFound (getId merchant.id))
   drivers <- Esq.runInReplica $ QDocStatus.fetchDriverDocsInfo merchant.id Nothing
-  pure $ foldl' (func onboardingTryLimit now) Common.emptyInfo drivers
+  pure $ foldl' (func configs.onboardingTryLimit now) Common.emptyInfo drivers
   where
     oneMonth :: NominalDiffTime
     oneMonth = 60 * 60 * 24 * 30
