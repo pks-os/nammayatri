@@ -49,3 +49,9 @@ SELECT org_id as partner_org_id, BPPStCallCfg.config_type as config_type, BPPStC
 
 -- DROP QUERY, can be run before release as well, as table is not used anywhere in old / new version.
 DROP TABLE atlas_app.frfs_trip;
+
+-- UPDATE `shortUrlExpiryInHours` for all `TICKET_SMS` partner_org_config
+UPDATE atlas_app.partner_org_config
+SET config_json = config_json :: jsonb || jsonb_build_object('shortUrlExpiryInHours', 240)
+WHERE config_type = 'TICKET_SMS';
+

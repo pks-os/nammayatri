@@ -46,6 +46,7 @@ data MessageKey
   | SMS_DELIVERY_DETAILS_RECEIVER
   | POST_DELIVERY_SENDER
   | PRE_PICKUP_DELIVERY_RECEIVER
+  | METRO_TICKET_BOOKED
   deriving (Eq, Ord, Show, Read, Generic, ToJSON, FromJSON, ToSchema)
 
 type MerchantMessage = MerchantMessageD 'Safe
