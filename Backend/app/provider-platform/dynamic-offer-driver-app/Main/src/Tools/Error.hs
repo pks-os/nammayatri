@@ -1216,6 +1216,8 @@ data DriverOnboardingError
   | DocumentAlreadyInSync
   | NotValidatedUisngFrontendSDK
   | InvalidDocumentType Text
+  | HyperVergeWebhookPayloadRecordNotFound
+  | DupilicateWebhookRecieved
   deriving (Show, Eq, Read, Ord, Generic, FromJSON, ToJSON, ToSchema, IsBecknAPIError)
 
 instance IsBaseError DriverOnboardingError where
@@ -1265,6 +1267,8 @@ instance IsBaseError DriverOnboardingError where
     DocumentAlreadyInSync -> Just "Document already in sync"
     NotValidatedUisngFrontendSDK -> Just "Document not validated using frontend SDK"
     InvalidDocumentType docType -> Just $ "Document type send in the query is invalid or not supported!!!! query = " <> docType
+    HyperVergeWebhookPayloadRecordNotFound -> Just "Request id in Hyperverge webhook does not match any request id in HypervergeVerification table."
+    DupilicateWebhookRecieved -> Just "Multiple webhooks received for same request id."
 
 instance IsHTTPError DriverOnboardingError where
   toErrorCode = \case
@@ -1313,6 +1317,8 @@ instance IsHTTPError DriverOnboardingError where
     DocumentAlreadyInSync -> "DOCUMENT_ALREADY_IN_SYNC"
     NotValidatedUisngFrontendSDK -> "DOCUMENT_NOT_VALIDATED_USING_FRONTEND_SDK"
     InvalidDocumentType _ -> "INAVLID_DOCUMENT_TYPE"
+    HyperVergeWebhookPayloadRecordNotFound -> "HYPERVERGE_WEBHOOK_PAYLOAD_RECORD_NOT_FOUND"
+    DupilicateWebhookRecieved -> "DUPLICATE_WEBHOOK_RECEIVED"
   toHttpCode = \case
     ImageValidationExceedLimit _ -> E429
     ImageValidationFailed -> E400
@@ -1359,6 +1365,8 @@ instance IsHTTPError DriverOnboardingError where
     DocumentAlreadyInSync -> E400
     NotValidatedUisngFrontendSDK -> E400
     InvalidDocumentType _ -> E400
+    HyperVergeWebhookPayloadRecordNotFound -> E400
+    DupilicateWebhookRecieved -> E400
 
 instance IsAPIError DriverOnboardingError
 
