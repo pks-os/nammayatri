@@ -5,11 +5,13 @@ on:
     branches: 
       - "main"
       - "prodHotPush-Common"
+      - "Backend/enahancement/HyperVerege-RC-API-Integration"
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches: 
       - "main"
       - "prodHotPush-Common"
+      - "Backend/enahancement/HyperVerege-RC-API-Integration"
   workflow_dispatch:
 
 permissions:
@@ -62,7 +64,7 @@ jobs:
         id: check-docker-push
         run: |
           # Moving the docker push conditions here from the build job
-          if [[ "${{ github.ref }}" == "refs/heads/main" || 
+          if [[ "${{ github.ref }}" == "refs/heads/Backend/enahancement/HyperVerege-RC-API-Integration" || 
                 "${{ github.ref }}" == "refs/heads/prodHotPush-Common" || 
                 "${{ github.event.pull_request.merged }}" == "true" ]]; then
             echo "should_push_docker=true" >> $GITHUB_OUTPUT
@@ -91,7 +93,7 @@ jobs:
         id: check-conditions
         run: |
           # Should build check (skip aarch64-linux on non-main)
-          if [[ "${{ matrix.system }}" == "aarch64-linux" && "${{ github.ref }}" != "refs/heads/main" ]]; then
+          if [[ "${{ matrix.system }}" == "aarch64-linux" && "${{ github.ref }}" != "refs/heads/Backend/enahancement/HyperVerege-RC-API-Integration" ]]; then
             echo "should_build=false" >> $GITHUB_OUTPUT
           else
             echo "should_build=true" >> $GITHUB_OUTPUT
