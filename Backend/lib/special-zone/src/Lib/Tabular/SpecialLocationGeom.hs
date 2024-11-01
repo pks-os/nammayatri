@@ -33,6 +33,7 @@ mkPersist
   [defaultQQ|
     SpecialLocationGeomT sql=special_location
       id Text
+      refId Text Maybe 
       locationName Text
       category Text
       gates (PostgresList Domain.GatesInfo)

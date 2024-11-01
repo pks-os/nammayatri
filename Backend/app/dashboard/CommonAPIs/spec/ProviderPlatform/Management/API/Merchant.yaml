@@ -346,6 +346,17 @@ apis:
         endpoint: MerchantAPI UpdateOnboardingVehicleVariantMappingEndpoint
         endpointV2:
         userActionType: ApiAuth DRIVER_OFFER_BPP_MANAGEMENT MERCHANT UPDATE_ONBOARDING_VEHICLE_VARIANT_MAPPING
+  - POST: # UpsertSpecialLocationCsvAPI
+      endpoint: /config/specialLocation/upsert/
+      auth: ApiAuthV2        
+      multipart:
+        type: UpsertSpecialLocationCsvReq
+      response:
+        type: APISuccess
+      migrate:
+        endpoint: MerchantAPI UpsertSpecialLocationCsvEndpoint
+        endpointV2:
+        userActionType: ApiAuth DRIVER_OFFER_BPP_MANAGEMENT MERCHANT UPSERT_SPECIAL_LOCATION_CSV
   - POST: # UpsertSpecialLocationAPI
       endpoint: /specialLocation/upsert
       query:
@@ -750,6 +761,11 @@ types:
     - success: Text
   UpsertFarePolicyReq:
     - recordType: NewType
+    - file: FilePath
+    - derive: "'HideSecrets"
+  UpsertSpecialLocationCsvReq:    
+    - locationGeoms: "[(Text, FilePath)]"
+    - gateGeoms: "[(Text, FilePath)]"
     - file: FilePath
     - derive: "'HideSecrets"
   SchedulerTriggerReq:

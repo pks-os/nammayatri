@@ -295,6 +295,7 @@ postMerchantSpecialLocationUpsert merchantShortId _city mbSpecialLocationId requ
       return $
         SL.SpecialLocation
           { gates = [],
+            refId = Nothing,
             createdAt = maybe now (.createdAt) mbExistingSpLoc,
             updatedAt = now,
             merchantOperatingCityId = (.id.getId) <$> merchantOperatingCity,

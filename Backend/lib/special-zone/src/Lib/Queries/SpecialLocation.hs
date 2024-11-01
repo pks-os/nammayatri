@@ -53,6 +53,15 @@ data SpecialLocationWarrior = SpecialLocationWarrior
 findById :: Transactionable m => Id D.SpecialLocation -> m (Maybe D.SpecialLocation)
 findById = Esq.findById
 
+findByRefIdOrLocationName :: Transactionable m => Maybe Text -> Text -> m (Maybe D.SpecialLocation)
+findByRefIdOrLocationName refId locationName =
+  Esq.findOne $ do
+    specialLocation <- from $ table @SpecialLocationT
+    where_ $
+      specialLocation ^. SpecialLocationRefId ==. val refId
+        ||. specialLocation ^. SpecialLocationLocationName ==. val locationName
+    return specialLocation
+
 findByIdWithGeom :: Transactionable m => Id D.SpecialLocation -> m (Maybe (D.SpecialLocation, Maybe Text))
 findByIdWithGeom specialLocationId =
   Esq.findOne $ do

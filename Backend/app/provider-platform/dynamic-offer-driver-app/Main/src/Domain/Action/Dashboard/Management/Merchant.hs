@@ -23,6 +23,7 @@ module Domain.Action.Dashboard.Management.Merchant
     postMerchantConfigFarePolicyUpsert,
     postMerchantConfigOperatingCityCreate,
     postMerchantUpdateOnboardingVehicleVariantMapping,
+    postMerchantConfigSpecialLocationUpsert,
     postMerchantSpecialLocationUpsert,
     deleteMerchantSpecialLocationDelete,
     postMerchantSpecialLocationGatesUpsert,
@@ -109,13 +110,17 @@ import Kernel.Types.Id
 import Kernel.Types.TimeBound as TB
 import Kernel.Types.Value (MandatoryValue, OptionalValue)
 import Kernel.Utils.Common
+import Kernel.Utils.Geometry
 import Kernel.Utils.Validation
 import qualified Lib.Queries.GateInfo as QGI
 import qualified Lib.Queries.GateInfoGeom as QGIG
 import qualified Lib.Queries.SpecialLocation as QSL
 import qualified Lib.Queries.SpecialLocationGeom as QSLG
+import qualified Lib.Queries.SpecialLocationPriority as QSLP
 import Lib.Scheduler.JobStorageType.SchedulerType (createJobIn)
 import qualified Lib.Types.GateInfo as D
+import qualified Lib.Types.GateInfo as DGI
+import qualified Lib.Types.SpecialLocation as DSL
 import qualified Lib.Types.SpecialLocation as SL
 import SharedLogic.Allocator (AllocatorJobType (..), BadDebtCalculationJobData, CalculateDriverFeesJobData, DriverReferralPayoutJobData, SupplyDemandRequestJobData)
 import qualified SharedLogic.Allocator.Jobs.SendSearchRequestToDrivers.Handle.Internal.DriverPool.Config as DriverPool
@@ -954,6 +959,25 @@ postMerchantConfigFarePolicyUpdate _ _ reqFarePolicyId req = do
           ..
         }
 
+----------------------------------------------- CSV Util Functions -----------------------------------------------
+cleanField :: Text -> Maybe Text
+cleanField = replaceEmpty . T.strip
+
+readCSVField :: Read a => Int -> Text -> Text -> Flow a
+readCSVField idx fieldValue fieldName =
+  cleanField fieldValue >>= readMaybe . T.unpack & fromMaybeM (InvalidRequest $ "Invalid " <> fieldName <> ": " <> show fieldValue <> " at row: " <> show idx)
+
+readMaybeCSVField :: Read a => Int -> Text -> Text -> Maybe a
+readMaybeCSVField _ fieldValue _ =
+  cleanField fieldValue >>= readMaybe . T.unpack
+
+cleanCSVField :: Int -> Text -> Text -> Flow Text
+cleanCSVField idx fieldValue fieldName =
+  cleanField fieldValue & fromMaybeM (InvalidRequest $ "Invalid " <> fieldName <> ": " <> show fieldValue <> " at row: " <> show idx)
+
+cleanMaybeCSVField :: Int -> Text -> Text -> Maybe Text
+cleanMaybeCSVField _ fieldValue _ = cleanField fieldValue
+
 ---------------------------------------------------------------------
 data FarePolicyCSVRow = FarePolicyCSVRow
   { city :: Text,
@@ -1143,21 +1167,6 @@ postMerchantConfigFarePolicyUpsert merchantShortId opCity req = do
       case (decodeByName $ LBS.fromStrict csvData :: Either String (Header, V.Vector FarePolicyCSVRow)) of
         Left err -> throwError (InvalidRequest $ show err)
         Right (_, v) -> V.imapM (makeFarePolicy merchantOpCity distanceUnit) v >>= (pure . V.toList)
-
-    readCSVField :: Read a => Int -> Text -> Text -> Flow a
-    readCSVField idx fieldValue fieldName =
-      cleanField fieldValue >>= readMaybe . T.unpack & fromMaybeM (InvalidRequest $ "Invalid " <> fieldName <> ": " <> show fieldValue <> " at row: " <> show idx)
-
-    readMaybeCSVField :: Read a => Int -> Text -> Text -> Maybe a
-    readMaybeCSVField _ fieldValue _ =
-      cleanField fieldValue >>= readMaybe . T.unpack
-
-    cleanCSVField :: Int -> Text -> Text -> Flow Text
-    cleanCSVField idx fieldValue fieldName =
-      cleanField fieldValue & fromMaybeM (InvalidRequest $ "Invalid " <> fieldName <> ": " <> show fieldValue <> " at row: " <> show idx)
-
-    cleanMaybeCSVField :: Int -> Text -> Text -> Maybe Text
-    cleanMaybeCSVField _ fieldValue _ = cleanField fieldValue
 
     groupFarePolices :: [(Context.City, ServiceTierType, TripCategory, SL.Area, TimeBound, DFareProduct.SearchSource, Bool, FarePolicy.FarePolicy)] -> [[(Context.City, ServiceTierType, TripCategory, SL.Area, TimeBound, DFareProduct.SearchSource, Bool, FarePolicy.FarePolicy)]]
     groupFarePolices = DL.groupBy (\a b -> fst7 a == fst7 b) . DL.sortBy (compare `on` fst7)
@@ -1528,6 +1537,154 @@ postMerchantConfigFarePolicyUpsert merchantShortId opCity req = do
       Map.insert key True mapObj
 
 ---------------------------------------------------------------------
+---------------------------------------------------------------------
+data SpecialLocationCSVRow = SpecialLocationCSVRow
+  { city :: Text,
+    locationName :: Text,
+    refId :: Text,
+    locationFileName :: Text,
+    category :: Text,
+    gateInfoName :: Text,
+    gateInfoFileName :: Text,
+    gateInfoLat :: Text,
+    gateInfoLon :: Text,
+    gateInfoDefaultDriverExtra :: Text,
+    gateInfoAddress :: Text,
+    gateInfoHasGeom :: Text,
+    gateInfoCanQueueUpOnGate :: Text,
+    gateInfoType :: Text
+  }
+  deriving (Show)
+
+instance FromNamedRecord SpecialLocationCSVRow where
+  parseNamedRecord r =
+    SpecialLocationCSVRow
+      <$> r .: "city"
+      <*> r .: "location_name"
+      <*> r .: "ref_id"
+      <*> r .: "location_file_name"
+      <*> r .: "category"
+      <*> r .: "gate_info_name"
+      <*> r .: "gate_info_file_name"
+      <*> r .: "gate_info_lat"
+      <*> r .: "gate_info_lon"
+      <*> r .: "gate_info_default_driver_extra"
+      <*> r .: "gate_info_address"
+      <*> r .: "gate_info_has_geom"
+      <*> r .: "gate_info_can_queue_up_on_gate"
+      <*> r .: "gate_info_type"
+
+postMerchantConfigSpecialLocationUpsert :: ShortId DM.Merchant -> Context.City -> Common.UpsertSpecialLocationCsvReq -> Flow APISuccess
+postMerchantConfigSpecialLocationUpsert merchantShortId opCity req = do
+  merchant <- findMerchantByShortId merchantShortId
+  merchantOpCity <- CQMOC.findByMerchantIdAndCity merchant.id opCity >>= fromMaybeM (MerchantOperatingCityNotFound $ "merchantShortId: " <> merchantShortId.getShortId <> " ,city: " <> show opCity)
+  flatSpecialLocationAndGateInfo <- readCsv req.file req.locationGeoms req.gateGeoms merchantOpCity
+  let groupedSpecialLocationAndGateInfo = groupSpecialLocationAndGates flatSpecialLocationAndGateInfo
+  void $ foldM (runValidationOnSpecialLocationAndGatesGroup merchantOpCity) [] groupedSpecialLocationAndGateInfo
+  void $ mapM (processSpecialLocationAndGatesGroup merchantOpCity) groupedSpecialLocationAndGateInfo
+  return Success
+  where
+    readCsv csvFile locationGeomFiles gateGeomFiles merchantOpCity = do
+      csvData <- L.runIO $ BS.readFile csvFile
+      case (decodeByName $ LBS.fromStrict csvData :: Either String (Header, V.Vector SpecialLocationCSVRow)) of
+        Left err -> throwError (InvalidRequest $ show err)
+        Right (_, v) -> V.imapM (makeSpecialLocation locationGeomFiles gateGeomFiles merchantOpCity) v >>= (pure . V.toList)
+
+    makeSpecialLocation :: [(Text, FilePath)] -> [(Text, FilePath)] -> DMOC.MerchantOperatingCity -> Int -> SpecialLocationCSVRow -> Flow (Context.City, Text, (DSL.SpecialLocation, DGI.GateInfo))
+    makeSpecialLocation locationGeomFiles gateGeomFiles merchantOpCity idx row = do
+      now <- getCurrentTime
+      city :: Context.City <- readCSVField idx row.city "City"
+      refId :: Text <- (\rId -> (show city) <> "_" <> rId) =<< cleanCSVField idx row.city "Reference Id"
+      locationName :: Text <- cleanCSVField idx row.locationName "Location Name"
+      locationFileName :: Text <- cleanCSVField idx row.locationFileName "Location File Name"
+      locationGeomFile <- find (\(geomFileName) -> locationFileName `T.isPrefixOf` geomFileName) locationGeomFiles >>= fromMaybeM (InvalidRequest $ "KML file missing for location: " <> locationName)
+      locationGeom <- getGeomFromKML locationGeomFile >>= fromMaybeM (InvalidRequest $ "Not able to convert the given KML to PostGis geom for location: " <> locationName)
+      category :: Text <- cleanCSVField idx row.category "Category"
+      gateInfoId <- generateGUID
+      gateInfoName :: Text <- cleanCSVField idx row.gateInfoName "Gate Info (name)"
+      gateInfoLat :: Double <- readCSVField idx row.gateInfoLat "Gate Info (latitude)"
+      gateInfoLon :: Double <- readCSVField idx row.gateInfoLat "Gate Info (longitude)"
+      let gateInfoDefaultDriverExtra :: Maybe Int = readMaybeCSVField idx row.gateInfoDefaultDriverExtra "Gate Info (default_driver_extra)"
+          gateInfoAddress :: Maybe Text = cleanMaybeCSVField idx row.gateInfoAddress "Gate Info (address)"
+      gateInfoType :: DGI.GateType <- readCSVField idx row.gateInfoType "Gate Info (type)"
+      gateInfoHasGeom :: Bool <- readCSVField idx row.gateInfoHasGeom "Gate Info (geom)"
+      gateInfoCanQueueUpOnGate :: Bool <- readCSVField idx row.gateInfoCanQueueUpOnGate "Gate Info (can_queue_up_on_gate)"
+      gateInfoGeom <- do
+        if gateInfoHasGeom
+          then do
+            gateInfoFileName :: Text <- cleanCSVField idx row.gateInfoName "Gate Info (file_name)"
+            gateInfoGeomFile <- find (\(gateFileName) -> gateInfoFileName `T.isPrefixOf` gateFileName) gateGeomFiles >>= fromMaybeM (InvalidRequest $ "KML file missing for gateInfo: " <> gateInfoName)
+            gateGeom <- getGeomFromKML gateInfoGeomFile >>= fromMaybeM (InvalidRequest $ "Not able to convert the given KML to PostGis geom for gateInfo: " <> gateInfoName)
+            return $ Just gateGeom
+          else return Nothing
+      let specialLocation =
+            DSL.SpecialLocation
+              { id = Id locationName,
+                refId = Just refId,
+                locationName = locationName,
+                category = category,
+                merchantOperatingCityId = Just merchantOpCity.id.getId,
+                gates = [],
+                geom = Just $ T.pack locationGeom,
+                createdAt = now,
+                updatedAt = now
+              }
+          gateInfo =
+            DGI.GateInfo
+              { id = gateInfoId,
+                point = LatLong {lat = gateInfoLat, lon = gateInfoLon},
+                specialLocationId = Id locationName,
+                defaultDriverExtra = gateInfoDefaultDriverExtra,
+                name = gateInfoName,
+                address = gateInfoAddress,
+                geom = T.pack <$> gateInfoGeom,
+                canQueueUpOnGate = gateInfoCanQueueUpOnGate,
+                gateType = gateInfoType,
+                createdAt = now,
+                updatedAt = now
+              }
+      return (city, locationName, (specialLocation, gateInfo))
+
+    groupSpecialLocationAndGates :: [(Context.City, Text, (DSL.SpecialLocation, DGI.GateInfo))] -> [[(Context.City, Text, (DSL.SpecialLocation, DGI.GateInfo))]]
+    groupSpecialLocationAndGates = DL.groupBy (\a b -> fst2 a == fst2 b) . DL.sortBy (compare `on` fst2)
+      where
+        fst2 (c, l, _) = (c, l)
+
+    runValidationOnSpecialLocationAndGatesGroup :: DMOC.MerchantOperatingCity -> [(Maybe Text, Text)] -> [(Context.City, Text, (DSL.SpecialLocation, DGI.GateInfo))] -> Flow [(Maybe Text, Text)]
+    runValidationOnSpecialLocationAndGatesGroup _ _ [] = throwError $ InvalidRequest "Empty Special Location Group"
+    runValidationOnSpecialLocationAndGatesGroup merchantOpCity specialLocationsRefIdAndName (x : _) = do
+      let (city, locationName, (specialLocation, _)) = x
+      if (city /= opCity)
+        then throwError $ InvalidRequest ("Can't process special location for different city: " <> show city <> ", please login with this city in dashboard")
+        else do
+          when (isJust $ find (\(refId, name) -> refId == specialLocation.refId || name == specialLocation.locationName) specialLocationsRefIdAndName) $
+            throwError $ InvalidRequest ("Can't process special location with duplicate combination for either of following: " <> show specialLocation.refId <> ", " <> specialLocation.locationName)
+          QSLP.findByMerchantOpCityIdAndCategory merchantOpCity.id.getId specialLocation.category
+            >>= \case
+              Just _ -> return ()
+              Nothing -> throwError $ InvalidRequest ("Special location priority does not exist for category: " <> specialLocation.category)
+          return $ specialLocationsRefIdAndName <> (specialLocation.refId, specialLocation.locationName)
+
+    processSpecialLocationAndGatesGroup :: DMOC.MerchantOperatingCity -> [(Context.City, Text, (DSL.SpecialLocation, DGI.GateInfo))] -> Flow ()
+    processSpecialLocationAndGatesGroup _ [] = throwError $ InvalidRequest "Empty Special Location Group"
+    processSpecialLocationAndGatesGroup merchantOpCity specialLocationAndGates@(x : _) = do
+      let (city, locationName, (specialLocation, _)) = x
+      specialLocationId <-
+        QSL.findByRefIdOrLocationName specialLocation.refId specialLocation.locationName
+          >>= \case
+            Just spl -> do
+              void $
+                runTransaction $ do
+                  QSL.deleteById spl.id
+                  QGI.deleteAll spl.id
+              return $ spl.id
+            Nothing -> generateGUID
+      void $ runTransaction $ QSLG.create $ specialLocation {DSL.id = specialLocationId}
+      mapM_
+        (\(_, _, (_, gateInfo)) -> runTransaction $ QGIG.create $ gateInfo {DGI.specialLocationId = specialLocationId})
+        specialLocationAndGates
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 postMerchantSpecialLocationUpsert :: ShortId DM.Merchant -> Context.City -> Maybe (Id SL.SpecialLocation) -> Common.UpsertSpecialLocationReqT -> Flow APISuccess
 postMerchantSpecialLocationUpsert merchantShortId _city mbSpecialLocationId request = do
   existingSLWithGeom <- maybe (return Nothing) (Esq.runInReplica . QSL.findByIdWithGeom) mbSpecialLocationId

@@ -32,6 +32,7 @@ import Text.Show
 
 data SpecialLocation = SpecialLocation
   { id :: Id SpecialLocation,
+    refId :: Maybe Text,
     locationName :: Text,
     category :: Text,
     merchantOperatingCityId :: Maybe Text,

@@ -25,7 +25,7 @@ import API.Types.ProviderPlatform.Management.Endpoints.Merchant
 import Dashboard.Common as ReExport
 import Dashboard.Common.Merchant
 import Data.Aeson
-import Data.Text as T
+import qualified Data.Text as T
 import Kernel.Prelude
 import Kernel.ServantMultipart
 import Kernel.Types.Common
@@ -219,3 +219,21 @@ instance FromMultipart Tmp UpdateOnboardingVehicleVariantMappingReq where
 instance ToMultipart Tmp UpdateOnboardingVehicleVariantMappingReq where
   toMultipart form =
     MultipartData [] [FileData "file" (T.pack form.file) "" (form.file)]
+
+--- Upsert fare policy using csv file ----
+
+instance FromMultipart Tmp UpsertSpecialLocationCsvReq where
+  fromMultipart form = do
+    let locationGeoms = map (\file -> (fdFileName file, fdPayload file)) (filter (\file -> fdInputName file == T.pack "locationGeoms") $ files form)
+        gateGeoms = map (\file -> (fdFileName file, fdPayload file)) (filter (\file -> fdInputName file == T.pack "gateGeoms") $ files form)
+    csvFile <- fmap fdPayload (lookupFile "file" form)
+    return $ UpsertSpecialLocationCsvReq locationGeoms gateGeoms csvFile
+
+instance ToMultipart Tmp UpsertSpecialLocationCsvReq where
+  toMultipart form =
+    MultipartData
+      []
+      ( [FileData "file" (T.pack form.file) "" (form.file)]
+          <> (map (\(fileName, file) -> FileData "locationGeoms" (T.pack file) fileName file) form.locationGeoms)
+          <> (map (\(fileName, file) -> FileData "gateGeoms" (T.pack file) fileName file) form.gateGeoms)
+      )
