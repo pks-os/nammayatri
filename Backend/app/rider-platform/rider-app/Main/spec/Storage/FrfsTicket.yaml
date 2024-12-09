@@ -253,6 +253,8 @@ FRFSTicketBooking:
     bppDelayedInterest : Maybe Int
     lineColor : Maybe Text
     lineColorCode : Maybe Text
+    googleWalletJWTUrl : Maybe Text    
+    lineColor : Maybe Text
     frequency : Maybe Int
     journeyLegOrder : Maybe Int
     journeyId: Maybe (Id Journey)
@@ -372,6 +374,10 @@ FRFSTicketBooking:
       kvFunction: updateOneWithKV
       params: [bppDelayedInterest]
       where: quoteId
+    updateGoogleWalletLinkById:
+      kvFunction: updateOneWithKV
+      params: [googleWalletJWTUrl]
+      where: id
 
   extraOperations:
     - EXTRA_QUERY_FILE
