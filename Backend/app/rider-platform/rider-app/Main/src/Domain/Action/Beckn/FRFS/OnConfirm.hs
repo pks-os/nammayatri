@@ -17,12 +17,9 @@ module Domain.Action.Beckn.FRFS.OnConfirm where
 import qualified Beckn.ACL.FRFS.Utils as Utils
 import qualified BecknV2.FRFS.Enums as Spec
 import BecknV2.FRFS.Utils
-import Crypto.JOSE hiding (header, jwk)
-import Crypto.JOSE.Error as CJWTE (Error)
-import Crypto.JWT hiding (header, jwk)
-import Crypto.PubKey.RSA.Types as Crypto
-import qualified Data.ByteString.Lazy.Char8 as BS
+import Data.Aeson
 import qualified Data.Text as T
+import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Domain.Action.Beckn.FRFS.Common
 import qualified Domain.Action.Beckn.FRFS.GWLink as GWSA
 import Domain.Types.BecknConfig
@@ -46,11 +43,9 @@ import Kernel.Types.Error
 import Kernel.Types.Id
 import Kernel.Utils.Common
 import qualified Lib.Payment.Storage.Queries.PaymentTransaction as QPaymentTransaction
-import OpenSSL.EVP.PKey
-import OpenSSL.PEM
-import OpenSSL.RSA as RSA
 import qualified SharedLogic.MessageBuilder as MessageBuilder
 import Storage.Beam.Payment ()
+import qualified Storage.CachedQueries.FRFSConfig as CQFRFSConfig
 import qualified Storage.CachedQueries.Merchant as QMerch
 import qualified Storage.CachedQueries.Merchant.MerchantOperatingCity as QMerchOpCity
 import qualified Storage.CachedQueries.Person as CQP
@@ -70,6 +65,7 @@ import Tools.Error
 import qualified Tools.SMS as Sms
 import qualified Utils.Common.JWT.Config as GW
 import qualified Utils.Common.JWT.TransitClaim as TC
+import Web.JWT hiding (claims)
 
 validateRequest :: DOrder -> Flow (Merchant, Booking.FRFSTicketBooking)
 validateRequest DOrder {..} = do
@@ -243,38 +239,38 @@ mkTransitObjects :: Booking.FRFSTicketBooking -> Ticket.FRFSTicket -> Person.Per
 mkTransitObjects booking ticket person serviceAccount = do
   toStation <- CQStation.findById booking.toStationId >>= fromMaybeM (StationDoesNotExist $ "StationId:" +|| booking.toStationId ||+ "")
   fromStation <- CQStation.findById booking.fromStationId >>= fromMaybeM (StationDoesNotExist $ "StationId:" +|| booking.fromStationId ||+ "")
-  let tripType' = if booking._type == FQ.ReturnJourney then "ONE_WAY" else "RETURN_TRIP"
+  let tripType' = if booking._type == FQ.ReturnJourney then GWSA.ROUND_TRIP else GWSA.ONE_WAY
   let fromStaionNameLV = TC.LanguageValue {TC.language = "en-US", TC._value = fromStation.name}
   let toStaionNameLV = TC.LanguageValue {TC.language = "en-US", TC._value = toStation.name}
   let fromStationName = TC.Name {TC.defaultValue = fromStaionNameLV}
   let toStationName = TC.Name {TC.defaultValue = toStaionNameLV}
+  frfsConfig <- CQFRFSConfig.findByMerchantOperatingCityId booking.merchantOperatingCityId >>= fromMaybeM (InternalError $ "FRFS config not found for merchant operating city Id " <> show booking.merchantOperatingCityId)
   let barcode' =
         TC.Barcode
-          { TC._type = "QR_CODE",
-            TC.value = ticket.qrData,
-            TC.alternateText = Nothing
+          { TC._type = show GWSA.QR_CODE,
+            TC.value = ticket.qrData
           }
   let passengerName' = fromMaybe "-" person.firstName
-
+  let className = fromMaybe "namma_yatri_metro" frfsConfig.googleWalletClassName
+  let istTimeText = GWSA.showTimeIst ticket.validTill
+  let textModuleTicketNumber = TC.TextModule {TC._header = "Ticket number", TC.body = ticket.ticketNumber, TC.id = "myfield1"}
+  let textModuleValidUntil = TC.TextModule {TC._header = "Valid unitl", TC.body = istTimeText, TC.id = "myfield2"}
+  let textModules = [textModuleTicketNumber, textModuleValidUntil]
   return
     TC.TransitObject
       { TC.id = serviceAccount.saIssuerId <> "." <> ticket.id.getId,
-        TC.classId = serviceAccount.saIssuerId <> ".namma_yatri_metro",
-        TC.state = "ACTIVE",
-        TC.tripType = tripType',
+        TC.classId = serviceAccount.saIssuerId <> "." <> className,
+        TC.state = show GWSA.ACTIVE,
+        TC.tripType = show tripType',
+        TC.passengerType = show GWSA.SINGLE_PASSENGER,
         TC.passengerNames = passengerName',
         TC.ticketLeg =
           TC.TicketLeg
-            { TC.originStationCode = fromStation.code,
-              TC.originName = fromStationName,
-              TC.destinationStationCode = toStation.code,
-              TC.destinationName = toStationName,
-              TC.carriage = "-",
-              TC.ticketSeat = Nothing,
-              TC.departureDateTime = Nothing,
-              TC.arrivalDateTime = Nothing
+            { TC.originName = fromStationName,
+              TC.destinationName = toStationName
             },
-        TC.barcode = barcode'
+        TC.barcode = barcode',
+        TC.textModulesData = textModules
       }
 
 createTickets :: Booking.FRFSTicketBooking -> [DTicket] -> Int -> Flow [Ticket.FRFSTicket]
@@ -308,50 +304,37 @@ buildRecon recon ticket = do
         Recon.updatedAt = now
       }
 
-fromPEMString :: String -> IO Crypto.PrivateKey
-fromPEMString s =
-  readPrivateKey s PwNone
-    >>= ( \k ->
-            return
-              Crypto.PrivateKey
-                { private_pub =
-                    Crypto.PublicKey
-                      { public_size = rsaSize k,
-                        public_n = RSA.rsaN k,
-                        public_e = RSA.rsaE k
-                      },
-                  private_d = RSA.rsaD k,
-                  private_p = RSA.rsaP k,
-                  private_q = RSA.rsaQ k,
-                  private_dP = 0,
-                  private_dQ = 0,
-                  private_qinv = 0
-                }
-        )
-      . fromJust
-      . toKeyPair
-
-mkGoogleWalletLink :: TC.ServiceAccount -> [TC.TransitObject] -> Flow T.Text
+mkGoogleWalletLink :: (MonadFlow m, HasFlowEnv m r '["googleSAPrivateKey" ::: String]) => TC.ServiceAccount -> [TC.TransitObject] -> m T.Text
 mkGoogleWalletLink serviceAccount tObject = do
   let payload' =
         TC.Payload
           { TC.transitObjects = tObject
           }
-  let claims =
-        TC.TransitTicketClaims
-          { TC.iss = serviceAccount.saClientEmail,
-            TC.aud = "google",
-            TC.typ = "savetowallet",
-            TC.origins = ["www.example.com"],
-            TC.payload = payload'
+  privateKey <- asks (.googleSAPrivateKey)
+  let payloadValue = toJSON payload'
+  let origins = ["www.example.com"] :: [String]
+  let originsValue = toJSON origins
+  let additionalClaims = TC.createAdditionalClaims [("payload", payloadValue), ("origins", originsValue), ("typ", String "savetowallet")]
+  let jwtHeader =
+        JOSEHeader
+          { typ = Just "JWT",
+            cty = Nothing,
+            alg = Just RS256,
+            kid = Nothing
           }
-  let header = newJWSHeader ((), RS256)
-  privateKey <- liftIO $ fromPEMString serviceAccount.saPrivateKey
-  let jwk = fromRSA privateKey
-  signedJWT' :: Either CJWTE.Error SignedJWT <-
-    liftIO . runJOSE $ do
-      signJWT jwk header claims
-  signedJWT <- signedJWT' & fromEitherM (\err -> JWTSignError $ "Error:" +|| err ||+ "")
-  let jwtString = BS.unpack (encodeCompact signedJWT)
-  let url = T.pack ("https://pay.google.com/gp/v/save/" <> jwtString)
+  let iss = stringOrURI . TC.saClientEmail $ serviceAccount
+  let aud = Left <$> stringOrURI "google"
+  iat <- numericDate <$> liftIO getPOSIXTime
+  let claims =
+        mempty
+          { iat = iat,
+            iss = iss,
+            aud = aud,
+            unregisteredClaims = additionalClaims
+          }
+  token' <- liftIO $ TC.createJWT' jwtHeader claims privateKey
+  token <- fromEitherM (\err -> InternalError $ "Failed to get jwt token" <> show err) token'
+  logDebug $ "Token JWT" <> show (snd token)
+  let textToken = snd token
+  let url = "https://pay.google.com/gp/v/save/" <> textToken
   return url

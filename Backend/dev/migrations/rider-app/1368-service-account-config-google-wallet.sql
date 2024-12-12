@@ -1,7 +1,10 @@
 --- NOTE: Don't run below query in master or prod
 WITH MerchantWalletServiceConfigs AS (
   SELECT T1.merchant_id, T1.id, 'Wallet_GoogleWallet', CAST ('{
-   "walletServiceAccount":"xxxxxxxx"
+  "privateKeyId": "xxxxxxxxx",
+  "clientEmail": "ny-dev@jp-beckn-dev-2.iam.gserviceaccount.com",
+  "tokenUri": "https://oauth2.googleapis.com/token",
+  "issuerId": "xxxxxxxxxxx"
   }' AS json)
   FROM atlas_app.merchant_operating_city AS T1
 )

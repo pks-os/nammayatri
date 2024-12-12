@@ -75,7 +75,7 @@ onStatus _merchant booking (Booking dOrder) = do
       serviceAccount <- GWSA.getserviceAccount mId mocId' serviceName
       ticket <- runInReplica $ QTicket.findByTicketBookingIdTicketNumber booking.id ticketNumber >>= fromMaybeM (InternalError "Ticket Does Not Exist")
       let resourceId = serviceAccount.saIssuerId <> "." <> ticket.id.getId
-      let obj = TC.TransitObjectPatch {TC.state = state'}
+      let obj = TC.TransitObjectPatch {TC.state = show state'}
       void $ GWSA.updateTicketStatusForGoogleWallet obj serviceAccount resourceId
     refreshTicket ticket =
       whenJust ticket.qrRefreshAt $ \qrRefreshAt ->

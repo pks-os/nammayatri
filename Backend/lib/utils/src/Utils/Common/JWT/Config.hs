@@ -26,7 +26,12 @@ instance FromJSON WalletService where
 instance ToJSON WalletService where
   toJSON = String . show
 
-newtype GoogleWalletCfg = GoogleWalletCfg {walletServiceAccount :: EncryptedField 'AsEncrypted Text}
+data GoogleWalletCfg = GoogleWalletCfg
+  { privateKeyId :: EncryptedField 'AsEncrypted Text,
+    clientEmail :: Text,
+    tokenUri :: Text,
+    issuerId :: EncryptedField 'AsEncrypted Text
+  }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
 

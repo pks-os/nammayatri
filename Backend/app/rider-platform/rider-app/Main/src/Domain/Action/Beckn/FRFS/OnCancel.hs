@@ -97,7 +97,7 @@ onCancel _ booking' dOnCancel = do
   forM_ tickets $ \ticket -> do
     let googleStatus = GWLink.mapToGoogleTicketStatus ticket.status
     let resourceId = serviceAccount.saIssuerId <> "." <> ticket.id.getId
-    let obj = TC.TransitObjectPatch {TC.state = googleStatus}
+    let obj = TC.TransitObjectPatch {TC.state = show googleStatus}
     void $ GWSA.updateTicketStatusForGoogleWallet obj serviceAccount resourceId
   return ()
   where

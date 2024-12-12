@@ -6,32 +6,17 @@
 
 module Utils.Common.JWT.TransitClaim where
 
-import Data.Aeson
 import Data.Aeson as J
-import Data.Aeson.Casing
-import Data.Aeson.TH
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Map as Map
 import Data.String
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX
-import Kernel.Prelude hiding (exp)
+import Kernel.Prelude
 import Kernel.Utils.JSON
 import Kernel.Utils.JWT hiding (ServiceAccount (..))
 import Network.HTTP.Client hiding (Proxy)
 import Network.HTTP.Client.TLS
-import Web.JWT
-
-data TransitTicketClaims = TransitTicketClaims
-  { iss :: Text,
-    aud :: Text,
-    typ :: Text,
-    origins :: [Text],
-    payload :: Payload
-  }
-  deriving (Show, Generic)
-
-instance ToJSON TransitTicketClaims
+import Web.JWT hiding (claims)
 
 newtype Payload = Payload
   { transitObjects :: [TransitObject]
@@ -45,21 +30,17 @@ data TransitObject = TransitObject
     classId :: Text,
     state :: Text,
     tripType :: Text,
+    passengerType :: Text,
     passengerNames :: Text,
     ticketLeg :: TicketLeg,
-    barcode :: Barcode
+    barcode :: Barcode,
+    textModulesData :: [TextModule]
   }
   deriving (Show, Generic, FromJSON, ToJSON)
 
 data TicketLeg = TicketLeg
-  { originStationCode :: Text,
-    originName :: Name,
-    destinationStationCode :: Text,
-    destinationName :: Name,
-    carriage :: Text,
-    ticketSeat :: Maybe TicketSeat,
-    departureDateTime :: Maybe Text,
-    arrivalDateTime :: Maybe Text
+  { originName :: Name,
+    destinationName :: Name
   }
   deriving (Show, Generic, FromJSON, ToJSON)
 
@@ -88,8 +69,7 @@ data TicketSeat = TicketSeat
 
 data Barcode = Barcode
   { _type :: Text,
-    value :: Text,
-    alternateText :: Maybe Text
+    value :: Text
   }
   deriving (Show, Generic)
 
@@ -100,60 +80,46 @@ instance ToJSON Barcode where
   toJSON = genericToJSON stripPrefixUnderscoreIfAny
 
 data ServiceAccount = ServiceAccount
-  { saType :: !T.Text,
-    saProjectId :: !T.Text,
-    saPrivateKeyId :: !T.Text,
-    saPrivateKey :: !String,
+  { saPrivateKeyId :: !T.Text,
     saClientEmail :: !T.Text,
-    saClientId :: !T.Text,
-    saAuthUri :: !T.Text,
     saTokenUri :: !T.Text,
-    saAuthProviderX509CertUrl :: !T.Text,
-    saClientX509CertUrl :: !T.Text,
-    saUniverseDomain :: !T.Text,
     saIssuerId :: !T.Text
   }
   deriving (Show, Eq, Generic)
-
-$(deriveJSON (aesonPrefix snakeCase) ''ServiceAccount)
 
 newtype TransitObjectPatch = TransitObjectPatch
   { state :: Text
   }
   deriving (Show, Generic, FromJSON, ToJSON)
 
-createJWT' :: ServiceAccount -> [(T.Text, Value)] -> IO (Either String (JWTClaimsSet, T.Text))
-createJWT' sa additionalClaims = do
-  let iss = stringOrURI . saClientEmail $ sa
-  let aud = Left <$> (stringOrURI . saTokenUri $ sa)
-  let unregisteredClaims = ClaimsMap $ Map.fromList additionalClaims
-  let jwtHeader =
-        JOSEHeader
-          { typ = Just "JWT",
-            cty = Nothing,
-            alg = Just RS256,
-            kid = Just $ saPrivateKeyId sa
-          }
-  let mkey = readRsaSecret . C8.pack $ saPrivateKey sa
+data TextModule = TextModule
+  { _header :: Text,
+    body :: Text,
+    id :: Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON TextModule where
+  parseJSON = genericParseJSON stripPrefixUnderscoreIfAny
+
+instance ToJSON TextModule where
+  toJSON = genericToJSON stripPrefixUnderscoreIfAny
+
+createAdditionalClaims :: [(T.Text, Value)] -> ClaimsMap
+createAdditionalClaims additionalClaims = ClaimsMap $ Map.fromList additionalClaims
+
+createJWT' :: JOSEHeader -> JWTClaimsSet -> String -> IO (Either String (JWTClaimsSet, T.Text))
+createJWT' jwtHeader claims privateKey = do
+  let mkey = readRsaSecret . C8.pack $ privateKey
   case mkey of
     Nothing -> pure $ Left "Bad RSA key!"
     Just pkey -> do
       let key = EncodeRSAPrivateKey pkey
-      iat <- numericDate <$> getPOSIXTime
-      exp <- numericDate . (+ 3600) <$> getPOSIXTime
-      let searchRequest =
-            mempty
-              { exp = exp,
-                iat = iat,
-                iss = iss,
-                aud = aud,
-                unregisteredClaims = unregisteredClaims
-              }
-      pure $ Right (searchRequest, encodeSigned key jwtHeader searchRequest)
+      pure $ Right (claims, encodeSigned key jwtHeader claims)
 
-getJwtToken :: ServiceAccount -> [(T.Text, Value)] -> IO (Either String JWToken)
-getJwtToken sa additionalClaims = do
-  jwtPair <- createJWT' sa additionalClaims
+getJwtToken :: JOSEHeader -> JWTClaimsSet -> ServiceAccount -> String -> IO (Either String JWToken)
+getJwtToken jwtHeader claims sa privateKey = do
+  jwtPair <- createJWT' jwtHeader claims privateKey
   case jwtPair of
     Left err -> pure $ Left err
     Right (claimPairs, assertion) -> do
