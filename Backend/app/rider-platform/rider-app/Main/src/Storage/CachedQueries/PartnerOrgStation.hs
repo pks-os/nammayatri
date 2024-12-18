@@ -16,6 +16,7 @@ module Storage.CachedQueries.PartnerOrgStation
   ( findByPOrgIdAndPOrgStationId,
     findByStationIdAndPOrgId,
     findStationWithPOrgName,
+    findStationWithPOrgIdAndStationId,
   )
 where
 
@@ -70,6 +71,14 @@ cacheByStationIdAndPOrgId partnerOrgStation = do
 findStationWithPOrgName :: (CacheFlow m r, EsqDBFlow m r) => Id PartnerOrganization -> Id PartnerOrgStation -> m Station
 findStationWithPOrgName partnerOrgId partnerOrgStationId = do
   partnerOrgStation <- findByPOrgIdAndPOrgStationId partnerOrgId partnerOrgStationId >>= fromMaybeM (PartnerOrgStationDoesNotExist partnerOrgId.getId partnerOrgStationId.getId)
+  let stationId = partnerOrgStation.stationId
+  station <- CQS.findById stationId >>= fromMaybeM (StationNotFound $ "StationId:" +|| stationId.getId ||+ "")
+  let stationWithPOrgName = station {DStation.name = partnerOrgStation.name}
+  return stationWithPOrgName
+
+findStationWithPOrgIdAndStationId :: (CacheFlow m r, EsqDBFlow m r) => Id Station -> Id PartnerOrganization -> m Station
+findStationWithPOrgIdAndStationId stationId' partnerOrgId = do
+  partnerOrgStation <- findByStationIdAndPOrgId stationId' partnerOrgId >>= fromMaybeM (StationDoesNotExist stationId'.getId)
   let stationId = partnerOrgStation.stationId
   station <- CQS.findById stationId >>= fromMaybeM (StationNotFound $ "StationId:" +|| stationId.getId ||+ "")
   let stationWithPOrgName = station {DStation.name = partnerOrgStation.name}
