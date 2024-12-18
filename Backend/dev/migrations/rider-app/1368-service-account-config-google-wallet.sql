@@ -2,7 +2,7 @@
 WITH MerchantWalletServiceConfigs AS (
   SELECT T1.merchant_id, T1.id, 'Wallet_GoogleWallet', CAST ('{
   "privateKeyId": "xxxxxxxxx",
-  "clientEmail": "ny-dev@jp-beckn-dev-2.iam.gserviceaccount.com",
+  "clientEmail": "xx@example.com",
   "tokenUri": "https://oauth2.googleapis.com/token",
   "issuerId": "xxxxxxxxxxx"
   }' AS json)

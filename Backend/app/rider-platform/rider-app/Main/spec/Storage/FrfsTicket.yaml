@@ -254,7 +254,6 @@ FRFSTicketBooking:
     lineColor : Maybe Text
     lineColorCode : Maybe Text
     googleWalletJWTUrl : Maybe Text    
-    lineColor : Maybe Text
     frequency : Maybe Int
     journeyLegOrder : Maybe Int
     journeyId: Maybe (Id Journey)
@@ -596,7 +595,7 @@ FRFSConfig:
     busStationTtl: "1800"
     straightLineDistance: "5000"
     radius: "3000"
-    googleWalletClassName: "namma_yatri_metro"
+    googleWalletClassName: "'namma_yatri_metro'"
 
   fromTType:
     isCancellationAllowed: Kernel.Prelude.fromMaybe True|I

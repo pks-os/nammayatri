@@ -79,7 +79,7 @@ validateRequest DOrder {..} = do
     then do
       -- Booking is expired
       merchantOperatingCity <- QMerchOpCity.findById booking.merchantOperatingCityId >>= fromMaybeM (MerchantOperatingCityNotFound booking.merchantOperatingCityId.getId)
-      bapConfig <- QBC.findByMerchantIdDomainAndVehicle (Just merchantId) (show Spec.FRFS) (frfsVehicleCategoryToBecknVehicleCategory booking.vehicleType) >>= fromMaybeM (InternalError "Beckn Config not found")
+      bapConfig <- QBC.findByMerchantIdDomainAndVehicle (Just merchantId) (show Spec.FRFS) (frfsVehicleCategoryToBecknVehicleCategory booking.vehicleType) >>= fromMaybeM (InternalError $ "Beckn Config not found for merchantId:- " <> merchantId.getId)
       void $ QTBooking.updateBPPOrderIdAndStatusById (Just bppOrderId) Booking.FAILED booking.id
       void $ QFRFSTicketBookingPayment.updateStatusByTicketBookingId DFRFSTicketBookingPayment.REFUND_PENDING booking.id
       let updatedBooking = booking {Booking.bppOrderId = Just bppOrderId}
@@ -115,7 +115,6 @@ onConfirm merchant booking' dOrder = do
     serviceAccount <- GWSA.getserviceAccount mId mocId' serviceName
     transitObjects' <- createTransitObjects booking tickets person serviceAccount
     url <- mkGoogleWalletLink serviceAccount transitObjects'
-    logDebug $ "Google Wallet Url: " <> show url
     void $ QTBooking.updateGoogleWalletLinkById (Just url) booking.id
   return ()
   where
@@ -254,8 +253,12 @@ mkTransitObjects booking ticket person serviceAccount = do
   let className = fromMaybe "namma_yatri_metro" frfsConfig.googleWalletClassName
   let istTimeText = GWSA.showTimeIst ticket.validTill
   let textModuleTicketNumber = TC.TextModule {TC._header = "Ticket number", TC.body = ticket.ticketNumber, TC.id = "myfield1"}
-  let textModuleValidUntil = TC.TextModule {TC._header = "Valid unitl", TC.body = istTimeText, TC.id = "myfield2"}
+  let textModuleValidUntil = TC.TextModule {TC._header = "Valid until", TC.body = istTimeText, TC.id = "myfield2"}
   let textModules = [textModuleTicketNumber, textModuleValidUntil]
+  now <- getCurrentTime
+  let nowText = utcTimeToText now
+  let validTillText = utcTimeToText ticket.validTill
+  let timeInterval = TC.TimeInterval {TC.start = TC.DateTime {TC.date = nowText}, TC.end = TC.DateTime {TC.date = validTillText}}
   return
     TC.TransitObject
       { TC.id = serviceAccount.saIssuerId <> "." <> ticket.id.getId,
@@ -270,7 +273,8 @@ mkTransitObjects booking ticket person serviceAccount = do
               TC.destinationName = toStationName
             },
         TC.barcode = barcode',
-        TC.textModulesData = textModules
+        TC.textModulesData = textModules,
+        TC.validTimeInterval = timeInterval
       }
 
 createTickets :: Booking.FRFSTicketBooking -> [DTicket] -> Int -> Flow [Ticket.FRFSTicket]
@@ -334,7 +338,6 @@ mkGoogleWalletLink serviceAccount tObject = do
           }
   token' <- liftIO $ TC.createJWT' jwtHeader claims privateKey
   token <- fromEitherM (\err -> InternalError $ "Failed to get jwt token" <> show err) token'
-  logDebug $ "Token JWT" <> show (snd token)
   let textToken = snd token
   let url = "https://pay.google.com/gp/v/save/" <> textToken
   return url

@@ -119,10 +119,10 @@ upsertPersonAndGetFare partnerOrg req = withFlowHandlerAPI . withLogTag $ do
     buildFRFSSearchReq fromStationCode toStationCode routeCode quantity journeySearchData = DFRFSTypes.FRFSSearchAPIReq {..}
 
 getConfigByStationIds :: PartnerOrganization -> Text -> Text -> FlowHandler DPOFRFS.GetConfigResp
-getConfigByStationIds partnerOrg fromStationId toStationId = withFlowHandlerAPI . withLogTag $ do
+getConfigByStationIds partnerOrg fromGMMStationId toGMMStationId = withFlowHandlerAPI . withLogTag $ do
   void $ checkRateLimit partnerOrg.orgId getConfigHitsCountKey
 
-  DPOFRFS.getConfigByStationIds partnerOrg fromStationId toStationId
+  DPOFRFS.getConfigByStationIds partnerOrg fromGMMStationId toGMMStationId
   where
     withLogTag = Log.withLogTag ("FRFS:GetConfig:PartnerOrgId:" <> getId partnerOrg.orgId)
 

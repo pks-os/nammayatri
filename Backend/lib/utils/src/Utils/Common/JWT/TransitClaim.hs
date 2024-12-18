@@ -32,6 +32,7 @@ data TransitObject = TransitObject
     tripType :: Text,
     passengerType :: Text,
     passengerNames :: Text,
+    validTimeInterval :: TimeInterval,
     ticketLeg :: TicketLeg,
     barcode :: Barcode,
     textModulesData :: [TextModule]
@@ -104,6 +105,17 @@ instance FromJSON TextModule where
 
 instance ToJSON TextModule where
   toJSON = genericToJSON stripPrefixUnderscoreIfAny
+
+data TimeInterval = TimeInterval
+  { start :: DateTime,
+    end :: DateTime
+  }
+  deriving (Show, Generic, ToJSON, FromJSON)
+
+newtype DateTime = DateTime
+  { date :: Text
+  }
+  deriving (Show, Generic, ToJSON, FromJSON)
 
 createAdditionalClaims :: [(T.Text, Value)] -> ClaimsMap
 createAdditionalClaims additionalClaims = ClaimsMap $ Map.fromList additionalClaims

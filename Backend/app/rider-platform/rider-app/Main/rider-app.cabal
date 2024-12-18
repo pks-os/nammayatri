@@ -977,9 +977,7 @@ library
       TemplateHaskell
   ghc-options: -fwrite-ide-info -hiedir=.hie -fplugin=RecordDotPreprocessor -Wall -Wcompat -Widentities -fhide-source-paths -Werror -Wwarn=ambiguous-fields
   build-depends:
-      HsOpenSSL
-    , RSA >=2.4.1
-    , aeson
+      aeson
     , amazonka
     , amazonka-core
     , amazonka-ses
@@ -1012,7 +1010,6 @@ library
     , http-client-tls
     , http-media
     , http-types
-    , jose
     , insert-ordered-containers
     , json-logic-hs
     , jwt
@@ -1117,9 +1114,7 @@ executable rider-app-exe
       TemplateHaskell
   ghc-options: -fwrite-ide-info -hiedir=.hie -fplugin=RecordDotPreprocessor -threaded -rtsopts "-with-rtsopts=-N -T"
   build-depends:
-      HsOpenSSL
-    , RSA >=2.4.1
-    , aeson
+      aeson
     , amazonka
     , amazonka-core
     , amazonka-ses
@@ -1149,7 +1144,6 @@ executable rider-app-exe
     , http-client-tls
     , http-media
     , http-types
-    , jose
     , insert-ordered-containers
     , json-logic-hs
     , jwt

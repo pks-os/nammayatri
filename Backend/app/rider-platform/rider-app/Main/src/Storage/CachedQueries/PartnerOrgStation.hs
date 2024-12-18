@@ -78,8 +78,8 @@ findStationWithPOrgName partnerOrgId partnerOrgStationId = do
 
 findStationWithPOrgIdAndStationId :: (CacheFlow m r, EsqDBFlow m r) => Id Station -> Id PartnerOrganization -> m Station
 findStationWithPOrgIdAndStationId stationId' partnerOrgId = do
-  partnerOrgStation <- findByStationIdAndPOrgId stationId' partnerOrgId >>= fromMaybeM (StationDoesNotExist stationId'.getId)
-  let stationId = partnerOrgStation.stationId
-  station <- CQS.findById stationId >>= fromMaybeM (StationNotFound $ "StationId:" +|| stationId.getId ||+ "")
-  let stationWithPOrgName = station {DStation.name = partnerOrgStation.name}
+  partnerOrgStation <- findByStationIdAndPOrgId stationId' partnerOrgId
+  let pOrgName = partnerOrgStation <&> (.name)
+  station <- CQS.findById stationId' >>= fromMaybeM (StationNotFound $ "StationId:" +|| stationId'.getId ||+ "")
+  let stationWithPOrgName = station {DStation.name = fromMaybe station.name pOrgName}
   return stationWithPOrgName

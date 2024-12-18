@@ -240,7 +240,8 @@ buildFRFSTicketCancelMessage merchantOperatingCityId pOrgId req = do
   smsPOCfg <- do
     pOrgCfg <- CQPOC.findByIdAndCfgType pOrgId DPOC.TICKET_SMS >>= fromMaybeM (PartnerOrgConfigNotFound pOrgId.getId $ show DPOC.TICKET_SMS)
     DPOC.getTicketSMSConfig pOrgCfg.config
-  let baseUrl = smsPOCfg.publicUrl & T.replace (templateText "FRFS_BOOKING_ID") req.bookingId.getId
+  let ticketPlural = bool "tickets" "ticket" $ req.countOfTickets == 1
+      baseUrl = smsPOCfg.publicUrl & T.replace (templateText "FRFS_BOOKING_ID") req.bookingId.getId
       shortUrlReq =
         UrlShortner.GenerateShortUrlReq
           { baseUrl,
@@ -252,7 +253,7 @@ buildFRFSTicketCancelMessage merchantOperatingCityId pOrgId req = do
   res <- UrlShortner.generateShortUrl shortUrlReq
   let url = res.shortUrl
   logDebug $ "Generated short url: " <> url
-  buildSendSmsReq merchantMessage [("URL", url)]
+  buildSendSmsReq merchantMessage [("URL", url), ("TICKET_PLURAL", ticketPlural)]
 
 shortenTrackingUrl :: (EsqDBFlow m r, CacheFlow m r, HasFlowEnv m r '["urlShortnerConfig" ::: UrlShortner.UrlShortnerConfig]) => Text -> m Text
 shortenTrackingUrl url = do

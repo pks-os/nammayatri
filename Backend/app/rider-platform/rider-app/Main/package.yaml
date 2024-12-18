@@ -134,9 +134,6 @@ dependencies:
   - resource-pool
   - jwt
   - insert-ordered-containers
-  - jose
-  - HsOpenSSL
-  - RSA >= 2.4.1
   - mtl
 
 ghc-options:
