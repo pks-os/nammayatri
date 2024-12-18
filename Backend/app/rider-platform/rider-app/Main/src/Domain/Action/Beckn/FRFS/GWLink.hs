@@ -50,8 +50,6 @@ getserviceAccount merchantId merchantOpCityId serviceName = do
     _ -> throwError $ InternalError $ "Unknown Service Config" <> " MerchantOperatingCityId :-" <> merchantOpCityId.getId
   cfg <- case wsc of
     C.GoogleWalletConfig cfg' -> pure cfg'
-  logDebug $ "Private Key Id:" <> show cfg.privateKeyId
-  logDebug $ "Issuer Id:" <> show cfg.issuerId
   privateKeyId <- decrypt cfg.privateKeyId
   issuerId <- decrypt cfg.issuerId
   return

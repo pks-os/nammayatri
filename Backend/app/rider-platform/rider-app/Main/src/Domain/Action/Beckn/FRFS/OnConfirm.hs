@@ -108,7 +108,7 @@ onConfirm merchant booking' dOrder = do
   void $ sendTicketBookedSMS mRiderNumber person.mobileCountryCode
   void $ QPS.incrementTicketsBookedInEvent booking.riderId booking.quantity
   void $ CQP.clearPSCache booking.riderId
-  fork "adding googleJWTUrl" $ do
+  fork ("adding googleJWTUrl" <> " Booking Id: " <> booking.id.getId) $ do
     let serviceName = DEMSC.WalletService GW.GoogleWallet
     let mId = booking'.merchantId
     let mocId' = booking'.merchantOperatingCityId
