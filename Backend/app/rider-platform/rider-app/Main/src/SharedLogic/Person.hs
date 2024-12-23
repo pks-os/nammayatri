@@ -29,8 +29,8 @@ import qualified Kernel.Storage.Hedis.Queries as Hedis
 import Kernel.Types.Id
 import Kernel.Utils.Common (CacheFlow, fork, fromMaybeM, getCurrentTime)
 import qualified Storage.CachedQueries.Merchant.RiderConfig as QRC
-import qualified Storage.Clickhouse.Booking as CHB
 import qualified Storage.Clickhouse.BookingCancellationReason as CHBCR
+import qualified Storage.Clickhouse.BookingWithoutFinal as CHB
 import qualified Storage.Queries.Person as QPerson
 import qualified Storage.Queries.PersonStats as QP
 import qualified Storage.Queries.SafetySettings as QSafety
@@ -48,8 +48,8 @@ backfillPersonStats personId merchantOpCityid = do
 getBackfillPersonStatsData :: (EsqDBFlow m r, EsqDBReplicaFlow m r, CacheFlow m r, CoreMetrics m, ClickhouseFlow m r) => Id DP.Person -> Id DMOC.MerchantOperatingCity -> m DPS.PersonStats
 getBackfillPersonStatsData personId merchantOpCityid = do
   person <- QPerson.findById personId >>= fromMaybeM (PersonNotFound personId.getId)
-  (cancelledBookingIds, maxBookingTimeCancelled) <- CHB.findAllCancelledBookingIdsByRiderAndMaxTime personId person.createdAt
-  (userCancelledRides, driverCancelledRides) <- CHBCR.countCancelledBookingsByBookingIdsByUserAndDriver cancelledBookingIds person.createdAt
+  maxBookingTimeCancelled <- CHB.findMaxTimeForCancelledBookingByRiderId personId person.createdAt
+  (userCancelledRides, driverCancelledRides) <- CHBCR.countCancelledBookingsByRiderIdGroupByByUserAndDriver personId person.createdAt
   completedBookingsCreatedAt <- CHB.findByRiderIdAndStatus personId DB.COMPLETED person.createdAt
   let maxBookingTimeCompleted = foldl' max person.createdAt completedBookingsCreatedAt
   let maxBookingTime = max maxBookingTimeCancelled maxBookingTimeCompleted
