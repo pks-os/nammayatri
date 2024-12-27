@@ -27,7 +27,7 @@ import Kernel.Storage.Esqueleto (EsqDBFlow)
 import Kernel.Storage.Esqueleto.Config (EsqDBReplicaFlow)
 import qualified Kernel.Storage.Hedis.Queries as Hedis
 import Kernel.Types.Id
-import Kernel.Utils.Common (CacheFlow, fork, fromMaybeM, getCurrentTime)
+import Kernel.Utils.Common (CacheFlow, fork, fromMaybeM, getCurrentTime, logDebug)
 import qualified Storage.CachedQueries.Merchant.RiderConfig as QRC
 import qualified Storage.Clickhouse.BookingCancellationReason as CHBCR
 import qualified Storage.Clickhouse.BookingWithoutFinal as CHB
@@ -51,6 +51,7 @@ getBackfillPersonStatsData personId merchantOpCityid = do
   maxBookingTimeCancelled <- CHB.findMaxTimeForCancelledBookingByRiderId personId person.createdAt
   (userCancelledRides, driverCancelledRides) <- CHBCR.countCancelledBookingsByRiderIdGroupByByUserAndDriver personId person.createdAt
   completedBookingsCreatedAt <- CHB.findByRiderIdAndStatus personId DB.COMPLETED person.createdAt
+  logDebug $ "Fetched all backfill data for personId: " <> personId.getId
   let maxBookingTimeCompleted = foldl' max person.createdAt completedBookingsCreatedAt
   let maxBookingTime = max maxBookingTimeCancelled maxBookingTimeCompleted
   Hedis.setExp (personRedisKey personId) maxBookingTime 43200
