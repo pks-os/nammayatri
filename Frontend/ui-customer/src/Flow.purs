@@ -2057,6 +2057,7 @@ homeScreenFlow = do
           modifyScreenState $ HomeScreenStateType (\homeScreen -> homeScreen { props { autoScroll = false, isCancelRide = false, currentStage = HomeScreen, rideRequestFlow = false, isSearchLocation = NoView } })
           lift $ lift $ triggerRideStatusEvent "CANCELLED_PRODUCT" Nothing (Just state.props.bookingId) $ getScreenFromStage state.props.currentStage
           void $ pure $ clearTimerWithId <$> state.props.waitingTimeTimerIds
+          void $ pure $ JB.destroySignedCall
           liftFlowBT $ logEvent logField_ "ny_user_ride_cancelled_by_user"
           liftFlowBT $ logEvent logField_ $ "ny_user_cancellation_reason: " <> state.props.cancelReasonCode
           removeChatService ""
@@ -7060,6 +7061,7 @@ fcmHandler notification state notificationBody= do
         isPersonDeliveryInitiator = HU.isDeliveryInitiator state.data.requestorPartyRoles
 
       void $ pure $ metaLogEvent "ny_user_ride_completed"
+      void $ pure $ JB.destroySignedCall
       void $ updateLocalStage HomeScreen
       setValueToLocalStore IS_SOS_ACTIVE "false"
       deleteValueFromLocalStore SELECTED_VARIANT

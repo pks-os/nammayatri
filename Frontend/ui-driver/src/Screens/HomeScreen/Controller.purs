@@ -1102,11 +1102,19 @@ eval (RideActionModalAction (RideActionModal.CallCustomer)) state = do
   else do
     let exoPhoneNo = if state.data.activeRide.tripType == ST.Delivery then maybe "0000" (\(API.PersonDetails det) -> det.primaryExophone) state.data.activeRide.senderPersonDetails else state.data.activeRide.exoPhone
     let exophoneNumber = if (take 1 exoPhoneNo) == "0" then exoPhoneNo else "0" <> exoPhoneNo
-    updateWithCmdAndExit state [ do
-      void $ pure $ showDialer exophoneNumber false
-      _ <- logEventWithTwoParams state.data.logField "call_customer" "trip_id" (state.data.activeRide.id) "user_id" (getValueToLocalStore DRIVER_ID)
-      pure NoAction
-      ] $ CallCustomer state exophoneNumber
+    if state.data.voipDialerSwitch then do
+      let customerCuid = if state.data.activeRide.id /= "" then state.data.activeRide.id else ""
+      continueWithCmd state [ do
+        when (customerCuid /= "") do
+          void $ pure $ JB.voipDialer customerCuid true exophoneNumber false
+        pure NoAction
+      ]
+    else do
+      updateWithCmdAndExit state [ do
+        void $ pure $ showDialer exophoneNumber false -- TODO: FIX_DIALER
+        _ <- logEventWithTwoParams state.data.logField "call_customer" "trip_id" (state.data.activeRide.id) "user_id" (getValueToLocalStore DRIVER_ID)
+        pure NoAction
+        ] $ CallCustomer state exophoneNumber
 
 eval (RideActionModalAction (RideActionModal.SecondaryTextClick popUpType)) state = do
   let updatedState = if popUpType == RideActionModal.RentalInfo then state{props{rentalInfoPopUp = true, safetyAudioAutoPlay = false}} 
@@ -1202,11 +1210,22 @@ eval ScrollToBottom state = do
 
 eval (ChatViewActionController (ChatView.TextChanged value)) state = continue state{data{messageToBeSent = (trim value)},props{sendMessageActive = (length (trim value)) >= 1}}
 
-eval(ChatViewActionController (ChatView.Call)) state = continueWithCmd state [ do
-  _ <- pure $ showDialer (if (take 1 state.data.activeRide.exoPhone) == "0" then state.data.activeRide.exoPhone else "0" <> state.data.activeRide.exoPhone) false -- TODO: FIX_DIALER
-  _ <- logEventWithTwoParams state.data.logField "call_customer" "trip_id" state.data.activeRide.id "user_id" (getValueToLocalStore DRIVER_ID)
-  pure NoAction
-  ]
+-- eval(ChatViewActionController (ChatView.Call)) state = continueWithCmd state [ do
+eval(ChatViewActionController (ChatView.Call)) state = do
+  let exophoneNumber = if (take 1 state.data.activeRide.exoPhone) == "0" then state.data.activeRide.exoPhone else "0" <> state.data.activeRide.exoPhone
+  if state.data.voipDialerSwitch then do
+      let customerCuid = if state.data.activeRide.id /= "" then state.data.activeRide.id else ""
+      continueWithCmd state [ do
+        when (customerCuid /= "") do
+          void $ pure $ JB.voipDialer customerCuid true exophoneNumber false
+        pure NoAction
+      ]
+  else
+    continueWithCmd state [ do
+      _ <- pure $ showDialer exophoneNumber false -- TODO: FIX_DIALER
+      _ <- logEventWithTwoParams state.data.logField "call_customer" "trip_id" state.data.activeRide.id "user_id" (getValueToLocalStore DRIVER_ID)
+      pure NoAction
+    ]
 
 eval (ChatViewActionController (ChatView.SendMessage)) state = do
   if state.data.messageToBeSent /= ""

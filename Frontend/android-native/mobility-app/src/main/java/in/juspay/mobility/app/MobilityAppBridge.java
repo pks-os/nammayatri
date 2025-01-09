@@ -98,6 +98,7 @@ import in.juspay.hyper.core.BridgeComponents;
 import in.juspay.hyper.core.ExecutorManager;
 import in.juspay.hypersdk.data.KeyValueStore;
 import in.juspay.mobility.app.RemoteConfigs.MobilityRemoteConfigs;
+import in.juspay.mobility.app.CleverTapSignedCall;
 import in.juspay.mobility.app.callbacks.CallBack;
 import in.juspay.mobility.app.carousel.VPAdapter;
 import in.juspay.mobility.app.carousel.ViewPagerItem;
@@ -151,6 +152,8 @@ public class MobilityAppBridge extends HyperBridge {
 
     private static final ArrayList<SendMessageCallBack> sendMessageCallBacks = new ArrayList<>();
     private CallBack callBack;
+
+   private CleverTapSignedCall cleverTapSignedCall;
 
 
     private HashMap<String, SliderComponent> sliderComponentHashMap = new HashMap<>();
@@ -387,6 +390,26 @@ public class MobilityAppBridge extends HyperBridge {
     @JavascriptInterface
     public void removeChatMessageCallback() {
         storeChatMessageCallBack = null;
+    }
+
+    @JavascriptInterface
+    public void voipDialer(String cuid, boolean isDriver, String phoneNum, boolean isMissed) {
+        System.out.println("signedcall voipdialer came here");
+        cleverTapSignedCall = new CleverTapSignedCall(bridgeComponents.getContext(),bridgeComponents.getActivity());
+        cleverTapSignedCall.voipDialer(cuid,isDriver,phoneNum,isMissed);
+    }
+
+    @JavascriptInterface
+    public void initSignedCall(String cuid, boolean isDriver){
+        System.out.println("signedcall init came here");
+        cleverTapSignedCall = new CleverTapSignedCall(bridgeComponents.getContext(),bridgeComponents.getActivity());
+        cleverTapSignedCall.initSignedCall(cuid,isDriver);
+    }
+
+    @JavascriptInterface
+    public void destroySignedCall(){
+        cleverTapSignedCall = new CleverTapSignedCall(bridgeComponents.getContext(),bridgeComponents.getActivity());
+        cleverTapSignedCall.destroySignedCall();
     }
 
     public void callInAppNotificationCallBack(String onTapAction) {

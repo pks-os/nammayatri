@@ -2375,6 +2375,26 @@ export const cleverTapEvent = function (_event) {
   }
 }
 
+export const voipDialer = function (cuid) {
+  return function (isDriver) {
+    return function (phoneNum) {
+      return function (isMissed) {
+        window.JBridge.voipDialer(cuid,isDriver,phoneNum,isMissed);
+      }
+    }
+  }
+};
+
+export const initSignedCall = function (cuid) {
+  return function (isDriver) {
+      window.JBridge.initSignedCall(cuid,isDriver);
+  }
+};
+
+export const destroySignedCall = function () {
+  return window.JBridge.destroySignedCall();
+};
+
 export const getLocationNameV2 = function (lat, lon) {
   try {
     if (JBridge.getLocationNameSDK) {

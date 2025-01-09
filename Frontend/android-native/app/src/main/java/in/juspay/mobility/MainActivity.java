@@ -59,6 +59,9 @@ import com.clevertap.android.pushtemplates.PushTemplateNotificationHandler;
 import com.clevertap.android.sdk.ActivityLifecycleCallback;
 import com.clevertap.android.sdk.CleverTapAPI;
 import com.clevertap.android.sdk.interfaces.NotificationHandler;
+import com.clevertap.android.signedcall.fcm.SignedCallNotificationHandler;
+import com.clevertap.android.signedcall.init.SignedCallAPI;
+import com.clevertap.android.signedcall.interfaces.SCNetworkQualityHandler;
 import com.facebook.soloader.SoLoader;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.ConnectionResult;
@@ -101,7 +104,9 @@ import in.juspay.hypersdk.data.JuspayResponseHandler;
 import in.juspay.hypersdk.ui.HyperPaymentsCallbackAdapter;
 import in.juspay.mobility.app.ChatService;
 import in.juspay.mobility.app.InAppNotification;
+import in.juspay.mobility.app.CleverTapSignedCall;
 import in.juspay.mobility.app.LocationUpdateService;
+import in.juspay.mobility.app.MissedCallActionsHandler;
 import in.juspay.mobility.app.MobilityAppBridge;
 import in.juspay.mobility.app.MyFirebaseMessagingService;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
@@ -150,6 +155,8 @@ public class MainActivity extends AppCompatActivity {
     private static final MobilityRemoteConfigs remoteConfigs = new MobilityRemoteConfigs(false, true);
     ActivityResultLauncher<HyperKycConfig> launcher;
     private String registeredCallBackForHV;
+    private CleverTapSignedCall cleverTapSignedCall;
+
 
     SharedPreferences.OnSharedPreferenceChangeListener mListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
         @Override
@@ -445,7 +452,17 @@ public class MainActivity extends AppCompatActivity {
         CleverTapAPI.setDebugLevel(CleverTapAPI.LogLevel.VERBOSE);
         cleverTap.enableDeviceNetworkInfoReporting(true);
         CleverTapAPI.setNotificationHandler((NotificationHandler)new PushTemplateNotificationHandler());
-
+        cleverTapSignedCall = new CleverTapSignedCall(context, activity, true);
+        CleverTapAPI.setSignedCallNotificationHandler(new SignedCallNotificationHandler());
+        SignedCallAPI.setDebugLevel(SignedCallAPI.LogLevel.VERBOSE);
+        SignedCallAPI.getInstance().setMissedCallNotificationOpenedHandler(new MissedCallActionsHandler(context,activity));
+        SignedCallAPI.getInstance().setNetworkQualityCheckHandler(new SCNetworkQualityHandler() {
+            @Override
+            public boolean onNetworkQualityResponse(final int score) {
+                Log.d(LOG_TAG, "Signed Call Network quality score: " + score);
+                return score >= 70;
+            }
+        });  
 
         sharedPref.edit().putString("DEVICE_DETAILS", getDeviceDetails()).apply();
         sharedPref.edit().putString("UNIQUE_DD", NotificationUtils.uniqueDeviceDetails()).apply();

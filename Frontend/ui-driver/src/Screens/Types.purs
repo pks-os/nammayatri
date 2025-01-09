@@ -1101,6 +1101,8 @@ type HomeScreenData =  {
 , favPopUp :: FavouritePopUp
 , isSpecialLocWarrior :: Boolean
 , bus_number :: String
+, voipDialerSwitch :: Boolean
+
 }
 
 type FavouritePopUp = {

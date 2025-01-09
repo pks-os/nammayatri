@@ -2081,7 +2081,16 @@ eval CloseShowCallDialer state = continue state { props { showCallPopUp = false 
 
 eval (ShowCallDialer item) state = do
   case item of
-    ANONYMOUS_CALLER -> callDriver state "ANONYMOUS"
+    ANONYMOUS_CALLER -> do
+        let driverCuid = 
+              if state.data.driverInfoCardState.bppRideId /= "" 
+              then state.data.driverInfoCardState.bppRideId 
+              else ""
+        if driverCuid /= "" 
+          then do
+            void $ pure $ JB.voipDialer driverCuid false (fromMaybe state.data.driverInfoCardState.merchantExoPhone state.data.driverInfoCardState.driverNumber) false
+            continue state
+        else callDriver state "ANONYMOUS" 
     DIRECT_CALLER -> callDriver state "DIRECT"
 
 eval (DriverInfoCardActionController (DriverInfoCardController.StartLocationTracking item)) state = continueWithCmd state [do pure $ StartLocationTracking item]
