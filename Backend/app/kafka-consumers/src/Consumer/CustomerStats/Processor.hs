@@ -41,21 +41,22 @@ updateCustomerStats event _ = do
       case mbOperatingCityId of
         Nothing -> logInfo "No merchant operating city id found"
         Just merchantOperatingCityId -> do
-          personStats <-
+          (personStats, isAlreadyBackfilled) <-
             QP.findByPersonId personId >>= \case
               Nothing -> do
                 logDebug $ "PersonStats not found for personId: " <> personId.getId
                 personData <- getBackfillPersonStatsData personId merchantOperatingCityId
-                QP.createPersonStats personData
+                _ <- QP.createPersonStats personData
+                pure (personData, True)
               Just ps | isNotBackfilled ps -> do
                 personData <- getBackfillPersonStatsData personId merchantOperatingCityId
                 QP.incrementOrSetPersonStats personData
-                pure personData
-              Just ps -> pure ps
+                pure (personData, True)
+              Just ps -> pure (ps, False)
 
           whenJust (event.payload) $ \payload -> do
             let maxTimevalue = personStats.backfilledFromCkhTill
-            unless (isNotBackfilled personStats) do
+            unless isAlreadyBackfilled do
               let eventCreatedAt = payload.cAt
               now <- getCurrentTime
               if isJust maxTimevalue && (diffUTCTime (fromMaybe now maxTimevalue) eventCreatedAt > 0)
