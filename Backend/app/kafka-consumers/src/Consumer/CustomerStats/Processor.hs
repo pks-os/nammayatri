@@ -22,7 +22,6 @@ import "rider-app" Domain.Types.Ride as DDR
 import Environment
 import Kernel.Beam.Functions
 import Kernel.Prelude
-import qualified Kernel.Storage.Hedis.Queries as Hedis
 import Kernel.Types.Id
 import Kernel.Utils.Common
 import "sessionizer-metrics" Lib.SessionizerMetrics.Types.Event as E
@@ -43,20 +42,19 @@ updateCustomerStats event _ = do
         Nothing -> logInfo "No merchant operating city id found"
         Just merchantOperatingCityId -> do
           personStats <-
-            runInReplica $
-              QP.findByPersonId personId >>= \case
-                Nothing -> do
-                  logDebug $ "PersonStats not found for personId: " <> personId.getId
-                  personData <- getBackfillPersonStatsData personId merchantOperatingCityId
-                  QP.createPersonStats personData
-                Just ps | isNotBackfilled ps -> do
-                  personData <- getBackfillPersonStatsData personId merchantOperatingCityId
-                  QP.incrementOrSetPersonStats personData
-                  pure personData
-                Just ps -> pure ps
+            QP.findByPersonId personId >>= \case
+              Nothing -> do
+                logDebug $ "PersonStats not found for personId: " <> personId.getId
+                personData <- getBackfillPersonStatsData personId merchantOperatingCityId
+                QP.createPersonStats personData
+              Just ps | isNotBackfilled ps -> do
+                personData <- getBackfillPersonStatsData personId merchantOperatingCityId
+                QP.incrementOrSetPersonStats personData
+                pure personData
+              Just ps -> pure ps
 
           whenJust (event.payload) $ \payload -> do
-            maxTimevalue :: (Maybe UTCTime) <- Hedis.get (personRedisKey personId)
+            let maxTimevalue = personStats.backfilledFromCkhTill
             unless (isNotBackfilled personStats) do
               let eventCreatedAt = payload.cAt
               now <- getCurrentTime
@@ -92,4 +90,4 @@ updateCustomerStats event _ = do
                       logError $ "Event type not handled for personId: " <> personId.getId <> " eventType: " <> show event.eventType
                       pure ()
   where
-    isNotBackfilled personStats_ = all (== 0) [personStats_.userCancelledRides, personStats_.completedRides, personStats_.weekendRides, personStats_.weekdayRides, personStats_.offPeakRides, personStats_.eveningPeakRides, personStats_.morningPeakRides, personStats_.weekendPeakRides]
+    isNotBackfilled personStats_ = all (== 0) [personStats_.userCancelledRides, personStats_.driverCancelledRides, personStats_.completedRides, personStats_.weekendRides, personStats_.weekdayRides, personStats_.offPeakRides, personStats_.eveningPeakRides, personStats_.morningPeakRides, personStats_.weekendPeakRides]
