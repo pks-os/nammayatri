@@ -433,7 +433,7 @@ capacityView push config =
   linearLayout
     [ width WRAP_CONTENT
     , height WRAP_CONTENT
-    ][ vehicleInfoView "ic_user_filled" config.capacity config.vehicleVariant
+    ][ vehicleInfoView "ny_ic_user_filled" config.capacity config.vehicleVariant
      , descriptionView config.serviceTierShortDesc config.vehicleVariant config.airConditioned
      ]
 
@@ -443,7 +443,6 @@ vehicleInfoView imageName description vehicleVariant = do
     [ width WRAP_CONTENT
     , height WRAP_CONTENT
     , gravity CENTER_VERTICAL
-    -- , visibility $ boolToVisibility $ not (isAmbulance vehicleVariant)
     ][ imageView
         [ imageWithFallback $ fetchImage FF_ASSET imageName
         , width $ V 14
@@ -470,7 +469,6 @@ descriptionView description vehicleVariant airConditioned =
         , width $ V 3
         , height $ V 3
         , margin $ Margin 2 2 0 0
-        -- , visibility $ boolToVisibility $ not $ isAmbulance vehicleVariant
         ]
      , imageView
         [ imageWithFallback $ fetchImage FF_ASSET "ny_ic_ac"

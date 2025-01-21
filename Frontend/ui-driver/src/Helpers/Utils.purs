@@ -1297,7 +1297,7 @@ getSrcDestConfig state =
 isAmbulance :: String -> Boolean
 isAmbulance vehicleVariant = case vehicleVariant of
   "AMBULANCE_TAXI" -> true
-  "AMBULACE_TAXI_OXY" -> true
+  "AMBULANCE_TAXI_OXY" -> true
   "AMBULANCE_AC" -> true
   "AMBULANCE_AC_OXY" -> true
   "AMBULANCE_VENTILATOR" -> true

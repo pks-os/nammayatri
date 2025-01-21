@@ -123,7 +123,7 @@ bookAmbulanceModalConfig state = let
       buttonLayoutMargin = Margin 0 0 0 0,
 
      primaryText {
-         text = "Yatri Sathi is only a platform connecting the Ambulance Service Providers with Customers. We are not responsible for information provided by the ambulance party."
+         text = getString AMBULANCE_BOOKING_DISCLAIMER
         , margin = Margin 16 0 16 0
         , visibility = VISIBLE
         , gravity = CENTER
@@ -132,7 +132,7 @@ bookAmbulanceModalConfig state = let
         visibility = GONE
       },
       option1 {
-        text = "Agree & Book"
+        text = getString A_C
       , color = Color.yellow900
       , strokeColor = Color.white900
       , padding = Padding 15 10 15 10
@@ -143,7 +143,7 @@ bookAmbulanceModalConfig state = let
       , gravity = CENTER
       },
       option2 {
-        text = "Cancel Booking"
+        text = getString CANCEL_BOOKING
       , color = Color.black900
       , strokeColor = Color.white900
       , padding = Padding 15 10 15 10

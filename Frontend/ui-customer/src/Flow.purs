@@ -7043,7 +7043,7 @@ fcmHandler notification state notificationBody= do
               currentSourceGeohash = runFn3 encodeGeohash srcLat srcLon state.data.config.suggestedTripsAndLocationConfig.geohashPrecision
 
               currentMap = getSuggestionsMapFromLocal FunctionCall
-            if (notElem state.data.fareProductType [FPT.RENTAL, FPT.AMBULANCE , FPT.DELIVERY , FPT.INTER_CITY] && currTrip.destination /= "") then do
+            if (isRegularFareProduct state.data.fareProductType && currTrip.destination /= "") then do
               let
                 updatedMap = addOrUpdateSuggestedTrips currentSourceGeohash currTrip false currentMap state.data.config.suggestedTripsAndLocationConfig false
               void $ pure $ setSuggestionsMap updatedMap
@@ -7051,7 +7051,15 @@ fcmHandler notification state notificationBody= do
               pure unit
             modifyScreenState $ HomeScreenStateType (\homeScreen -> newState { data { suggestionsData { suggestionsMap = getSuggestionsMapFromLocal FunctionCall } }, props { showAcWorkingPopup = true, showDeliveryImageAndOtpModal = false } })
             lift $ lift $ triggerRideStatusEvent notification Nothing (Just state.props.bookingId) $ getScreenFromStage state.props.currentStage
-      homeScreenFlow
+            homeScreenFlow
+            where
+              isRegularFareProduct :: FPT.FareProductType -> Boolean
+              isRegularFareProduct = case _ of
+                FPT.RENTAL -> false 
+                FPT.AMBULANCE -> false
+                FPT.DELIVERY -> false
+                FPT.INTER_CITY -> false
+                _ -> true
     "TRIP_FINISHED" -> do -- TRIP FINISHED
       logStatus "trip_finished_notification" ("bookingId : " <> state.props.bookingId)
       void $ pure $ JB.exitLocateOnMap ""

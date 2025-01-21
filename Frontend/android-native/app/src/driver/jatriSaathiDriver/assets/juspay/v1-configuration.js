@@ -604,7 +604,7 @@ let getAllCityConfig = () => {
       cityCode: "std:03215",
       cityLat: 22.40117,
       cityLong: 88.58293,
-      showSubscriptions: true
+      showSubscriptions: false
     })
   ];
   return cityConfigs;

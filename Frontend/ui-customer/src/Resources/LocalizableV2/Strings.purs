@@ -1824,5 +1824,6 @@ getProxy str =
     AMBULANCE_ -> \a -> a @~ ambulance_
     UNCOMFORTABLE_AMBULANCE -> \a -> a @~ uncomfortable_ambulance
     CLEAN_AMBULANCE -> \a -> a @~ clean_ambulance
+    AMBULANCE_BOOKING_DISCLAIMER -> \a -> a @~ ambulance_booking_disclaimer
 
 
