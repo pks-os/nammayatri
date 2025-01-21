@@ -1,48 +1,46 @@
 imports:
   DriverCoinsFunctionType: Dashboard.Common.DriverCoins
-  CoinsConfig: Domain.Types.Coins.CoinsConfig
+  CoinsConfig: Dashboard.Common
+  VehicleCategory: Domain.Types.VehicleCategory
 
 module: CoinsConfig
 
 apis:
   - PUT: # Updating Entries
-      endpoint: updateEntries/{active}/{expirationAt}/{coins}
+      endpoint: /update
       auth: ApiAuthV2
-      params:
-        active: Bool
-        expirationAt: Maybe Int
-        coins: Int
+      request:
+        type: UpdateReq
       response:
         type: APISuccess
-      migrate:
-        endpoint: CoinsConfigAPI UpdateEntriesEndpoint
-        endpointV2:
-        userActionType: ApiAuth DRIVER_OFFER_BPP_MANAGEMENT COINS_CONFIG UPDATE_ENTRIES
   - POST: # Duplicating Entries
-      endpoint: duplicateEntries/{entriesId}/{eventFunction}
+      endpoint: /duplicate/{entriesId}/{eventFunction}
       auth: ApiAuthV2
       params:
         entriesId: Id CoinsConfig
         eventFunction: DriverCoinsFunctionType
       response:
         type: APISuccess
-      migrate:
-        endpoint: CoinsConfigAPI DuplicateEntriesEndpoint
-        endpointV2:
-        userActionType: ApiAuth DRIVER_OFFER_BPP_MANAGEMENT COINS_CONFIG DUPLICATE_ENTRIES
   - POST: # Inserting New Entries
-      endpoint: newEntries/{active}/{expirationAt}/{coins}
+      endpoint: /create
       auth: ApiAuthV2
-      params:
-        active: Bool
-        expirationAt: Maybe Int
-        coins: Int
+      request:
+        type: CreateReq
       response:
         type: APISuccess
-      migrate:
-        endpoint: CoinsConfigAPI NewEntriesEndpoint
-        endpointV2:
-        userActionType: ApiAuth DRIVER_OFFER_BPP_MANAGEMENT COINS_CONFIG NEW_ENTRIES
 
 types:
-  {}
+  UpdateReq:
+    - entriesId: Id CoinsConfig
+    - active: Bool
+    - expirationAt: Maybe Int
+    - coins: Int
+  CreateReq:
+    - eventFunction: DriverCoinsFunctionType
+    - eventName: Text
+    - merchantId: Text
+    - merchantOptCityId: Text
+    - coins: Int
+    - expirationAt: Maybe Int
+    - active: Bool
+    - vehicleCategory: Maybe VehicleCategory
