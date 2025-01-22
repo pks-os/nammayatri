@@ -13,19 +13,19 @@ apis:
         type: UpdateReq
       response:
         type: APISuccess
-  - POST: # Duplicating Entries
-      endpoint: /duplicate/{entriesId}/{eventFunction}
-      auth: ApiAuthV2
-      params:
-        entriesId: Id CoinsConfig
-        eventFunction: DriverCoinsFunctionType
-      response:
-        type: APISuccess
-  - POST: # Inserting New Entries
+  - POST: # Duplicating Entries or Inserting New Entries
       endpoint: /create
       auth: ApiAuthV2
-      request:
-        type: CreateReq
+      query:
+        - entriesId: Id CoinsConfig
+        - eventFunction: DriverCoinsFunctionType
+        - eventName: Text
+        - merchantId: Text
+        - merchantOptCityId: Text
+        - coins: Int
+        - expirationAt: Maybe Int
+        - active: Bool
+        - vehicleCategory: Maybe VehicleCategory
       response:
         type: APISuccess
 
@@ -35,12 +35,3 @@ types:
     - active: Bool
     - expirationAt: Maybe Int
     - coins: Int
-  CreateReq:
-    - eventFunction: DriverCoinsFunctionType
-    - eventName: Text
-    - merchantId: Text
-    - merchantOptCityId: Text
-    - coins: Int
-    - expirationAt: Maybe Int
-    - active: Bool
-    - vehicleCategory: Maybe VehicleCategory
