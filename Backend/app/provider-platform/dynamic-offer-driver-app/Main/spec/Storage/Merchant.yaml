@@ -996,6 +996,7 @@ TransporterConfig:
     minDistanceForStopFcm: HighPrecMeters
     recomputeDistanceThresholds: Maybe [DistanceRecomputeConfigs]
     minThresholdForPassThroughDestination: Maybe Meters
+    maxThresholdForSnapToRoadCall: Meters
   beamType:
     currency: Maybe Currency
     distanceUnit: Maybe DistanceUnit
@@ -1044,6 +1045,7 @@ TransporterConfig:
     minDistanceForStopFcm: Maybe HighPrecMeters
     recomputeDistanceThresholds: Maybe Value
     minThresholdForPassThroughDestination: Maybe Meters
+    maxThresholdForSnapToRoadCall: Meters
 
   beamFields:
     fcmConfig:
@@ -1221,6 +1223,7 @@ TransporterConfig:
     minDistanceForStopFcm: double precision
     recomputeDistanceThresholds: json
     minThresholdForPassThroughDestination: int
+    maxThresholdForSnapToRoadCall: int
 
   default:
     mediaFileUrlPattern: |-
@@ -1353,6 +1356,7 @@ TransporterConfig:
     recomputeDistanceThresholds: '''[{"estimatedDistanceUpper": 5000,"minThresholdPercentage": 40,"minThresholdDistance": 1000},{"estimatedDistanceUpper": 10000,"minThresholdPercentage": 30,"minThresholdDistance": 1000},{"estimatedDistanceUpper": 15000,"minThresholdPercentage": 20,"minThresholdDistance": 1000},{"estimatedDistanceUpper": 9999999,"minThresholdPercentage": 10,"minThresholdDistance": 1000}]'' :: json'
 
     minThreshildForPassThroughDestination: "1000"
+    maxThresholdForSnapToRoadCall: "500"
   excludedDefaultQueries:
     - findByPrimaryKey
     - updateByPrimaryKey
