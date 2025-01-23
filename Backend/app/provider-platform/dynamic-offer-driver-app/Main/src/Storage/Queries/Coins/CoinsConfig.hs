@@ -36,6 +36,13 @@ fetchCoins eventFunction (Id merchantId) =
         ]
     ]
 
+fetchConfigOnIdBasis :: (MonadFlow m, CacheFlow m r, EsqDBFlow m r) => Id CoinsConfig -> m (Maybe CoinsConfig)
+fetchConfigOnIdBasis (Id coinsConfigId) =
+  findOneWithKV [Se.Is BeamDC.id $ Se.Eq coinsConfigId]
+
+updateCoinEntries :: (MonadFlow m, CacheFlow m r, EsqDBFlow m r) => CoinsConfig -> m ()
+updateCoinEntries = createWithKV
+
 fetchFunctionsOnEventbasis :: (MonadFlow m, CacheFlow m r, EsqDBFlow m r) => DCT.DriverCoinsEventType -> Id DM.Merchant -> Id DMOC.MerchantOperatingCity -> Maybe DTV.VehicleCategory -> m [CoinsConfig]
 fetchFunctionsOnEventbasis eventType (Id merchantId) (Id merchantOptCityId) vehicleCategory = do
   let dbEventName = show eventType
