@@ -16,6 +16,7 @@ import Kernel.Types.APISuccess (APISuccess (Success))
 import qualified Kernel.Types.Beckn.Context
 import qualified Kernel.Types.Id as ID
 import Servant
+import qualified Storage.CachedQueries.CoinsConfig as CQConfig
 import qualified Storage.Queries.Coins.CoinsConfig as QConfig
 import Tools.Auth
 
@@ -35,11 +36,13 @@ putCoinsConfigUpdate _merchantShortId _opCity Common.UpdateReq {..} = do
                 DTCC.expirationAt = expirationAt,
                 DTCC.coins = coins
               }
+          vehicleCategory =
+            case coinsConfig.vehicleCategory of
+              Just val -> val
+              Nothing -> error "vehicleCategory is Nothing" coinsConfig.vehicleCategory
       _ <- QConfig.updateCoinEntries updatedCoinsConfig
-      -- _ <- clearingCacheFunction
+      _ <- CQConfig.clearCache coinsConfig.eventName coinsConfig.eventFunction (ID.Id coinsConfig.merchantOptCityId) vehicleCategory
       pure Success
-
---    error "Logic yet to be decided" updatedCoinsConfig
 
 postCoinsConfigCreate ::
   ID.ShortId Domain.Types.Merchant.Merchant ->
