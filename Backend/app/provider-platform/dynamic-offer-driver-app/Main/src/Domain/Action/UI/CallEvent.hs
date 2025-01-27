@@ -73,7 +73,7 @@ callOnClickTracker rideId = do
       >>= fromMaybeM (TransporterConfigNotFound booking.merchantOperatingCityId.getId)
   callStatusObj <- buildCallStatus booking.merchantOperatingCityId booking.providerId
   QCallStatus.create callStatusObj
-  createJobIn @_ @'CheckExotelCallStatusAndNotifyBAP (Just booking.providerId) (Just booking.merchantOperatingCityId) (fromIntegral transporterConfig.exotelStatusCheckSchedulerDelay) $
+  createJobIn @_ @'CheckExotelCallStatusAndNotifyBAP (Just booking.providerId) (Just booking.merchantOperatingCityId) (fromIntegral transporterConfig.exotelStatusCheckSchedulerDelay) Nothing $
     CheckExotelCallStatusAndNotifyBAPJobData
       { rideId = ride.id,
         merchantOperatingCityId = Just (booking.merchantOperatingCityId)

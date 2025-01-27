@@ -42,6 +42,7 @@ RiderConfig:
     executePaymentDelay: NominalDiffTime
     cancellationPaymentDelay: NominalDiffTime
     policeTriggerDelay: NominalDiffTime
+    postRideSafetyNotificationExpireTime: NominalDiffTime
     exotelAppIdMapping: Maybe ExotelMapping
     hardLimitForSafetyJobs: Int
     exotelStatusCheckSchedulerDelay : Int
@@ -71,6 +72,7 @@ RiderConfig:
   beamType:
     ivrTriggerDelay: Maybe Seconds
     policeTriggerDelay: Maybe Seconds
+    postRideSafetyNotificationExpireTime: Maybe Seconds
     hardLimitForSafetyJobs: Maybe Seconds
     exotelStatusCheckSchedulerDelay : Maybe Seconds
     incidentReportSupport: Maybe Bool
@@ -100,6 +102,7 @@ RiderConfig:
     executePaymentDelay: fromMaybe 60 (Kernel.Utils.Common.secondsToNominalDiffTime <$> executePaymentDelay)|E
     cancellationPaymentDelay: fromMaybe 60 (Kernel.Utils.Common.secondsToNominalDiffTime <$> cancellationPaymentDelay)|E
     policeTriggerDelay: fromMaybe 60 (Kernel.Utils.Common.secondsToNominalDiffTime <$> policeTriggerDelay)|E
+    postRideSafetyNotificationExpireTime: fromMaybe 60 (Kernel.Utils.Common.secondsToNominalDiffTime <$> postRideSafetyNotificationExpireTime)|E
     hardLimitForSafetyJobs: fromMaybe 21600 ((.getSeconds) <$> hardLimitForSafetyJobs)|E
     exotelStatusCheckSchedulerDelay: maybe 120 (.getSeconds) exotelStatusCheckSchedulerDelay|E
     incidentReportSupport: fromMaybe False incidentReportSupport|E
@@ -120,6 +123,7 @@ RiderConfig:
     executePaymentDelay: (Just . Kernel.Utils.Common.nominalDiffTimeToSeconds)|I
     cancellationPaymentDelay: (Just . Kernel.Utils.Common.nominalDiffTimeToSeconds)|I
     policeTriggerDelay: (Just . Kernel.Utils.Common.nominalDiffTimeToSeconds)|I
+    postRideSafetyNotificationExpireTime: (Just . Kernel.Utils.Common.nominalDiffTimeToSeconds)|I
     hardLimitForSafetyJobs: Just $ Kernel.Types.Common.Seconds hardLimitForSafetyJobs|E
     exotelStatusCheckSchedulerDelay: Just $ Kernel.Types.Common.Seconds exotelStatusCheckSchedulerDelay|E
     incidentReportSupport: Just incidentReportSupport|E

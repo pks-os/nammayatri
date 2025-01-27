@@ -36,7 +36,7 @@ pushReminderUpdatesInScheduler booking ride now DRN.RideRelatedNotificationConfi
   when (toSchedule && (eventTime /= DRN.PreEvent || currentTimeDiffFromEventTime >= timeDiff)) do
     let scheduleAfter = if eventTime == DRN.PostEvent then (currentTimeDiffFromEventTime + timeDiff) else (currentTimeDiffFromEventTime - timeDiff)
         dfCalculationJobTs = max 2 scheduleAfter -- Buffer of 2 seconds in case of <=0 timeDiff
-    createJobIn @_ @'ScheduledRideNotificationsToRider (Just booking.merchantId) (Just booking.merchantOperatingCityId) dfCalculationJobTs $
+    createJobIn @_ @'ScheduledRideNotificationsToRider (Just booking.merchantId) (Just booking.merchantOperatingCityId) dfCalculationJobTs Nothing $
       ScheduledRideNotificationsToRiderJobData
         { merchantId = booking.merchantId,
           merchantOperatingCityId = booking.merchantOperatingCityId,

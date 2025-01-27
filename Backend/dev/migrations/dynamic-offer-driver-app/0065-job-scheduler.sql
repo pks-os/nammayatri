@@ -3,6 +3,7 @@ CREATE TABLE atlas_driver_offer_bpp.job (
   job_type character varying(255) NOT NULL,
   job_data text NOT NULL,
   scheduled_at timestamp NOT NULL,
+  job_expire_at timestamp,
   maximum_delay int,
   created_at timestamp NOT NULL,
   updated_at timestamp NOT NULL,

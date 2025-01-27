@@ -57,6 +57,7 @@ data RiderConfigT f = RiderConfigT
     placeNameCacheExpiryDays :: B.C f (Kernel.Prelude.Maybe Kernel.Prelude.Int),
     policeTriggerDelay :: B.C f (Kernel.Prelude.Maybe Kernel.Types.Common.Seconds),
     postRideSafetyNotificationDelay :: B.C f (Kernel.Prelude.Maybe Kernel.Types.Common.Seconds),
+    postRideSafetyNotificationExpireTime :: (B.C f (Kernel.Prelude.Maybe Kernel.Types.Common.Seconds)),
     safetyCheckEndTime :: B.C f Kernel.Types.Common.Seconds,
     safetyCheckStartTime :: B.C f Kernel.Types.Common.Seconds,
     sensitiveWords :: B.C f (Kernel.Prelude.Maybe [Kernel.Prelude.Text]),
@@ -80,8 +81,8 @@ instance B.Table RiderConfigT where
 
 type RiderConfig = RiderConfigT Identity
 
-$(enableKVPG ''RiderConfigT ['merchantOperatingCityId] [])
+$(enableKVPG (''RiderConfigT) [('merchantOperatingCityId)] [])
 
-$(mkTableInstances ''RiderConfigT "rider_config")
+$(mkTableInstances (''RiderConfigT) "rider_config")
 
-$(Domain.Types.UtilsTH.mkCacParseInstance ''RiderConfigT)
+$(Domain.Types.UtilsTH.mkCacParseInstance (''RiderConfigT))

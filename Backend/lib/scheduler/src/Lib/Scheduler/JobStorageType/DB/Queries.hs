@@ -56,7 +56,8 @@ instance (JobProcessor t) => FromTType'' BeamST.SchedulerJob (AnyJob t) where
             jobInfo = anyJobInfo,
             parentJobId = Id parentJobId,
             merchantId = Id <$> merchantId,
-            merchantOperatingCityId = Id <$> merchantOperatingCityId
+            merchantOperatingCityId = Id <$> merchantOperatingCityId,
+            jobExpireAt = T.localTimeToUTC T.utc <$> jobExpireAt
           }
 
 instance (JobProcessor t) => ToTType'' BeamST.SchedulerJob (AnyJob t) where
@@ -75,7 +76,8 @@ instance (JobProcessor t) => ToTType'' BeamST.SchedulerJob (AnyJob t) where
         BeamST.status = status,
         BeamST.parentJobId = getId parentJobId,
         BeamST.merchantId = getId <$> merchantId,
-        BeamST.merchantOperatingCityId = getId <$> merchantOperatingCityId
+        BeamST.merchantOperatingCityId = getId <$> merchantOperatingCityId,
+        BeamST.jobExpireAt = T.utcToLocalTime T.utc <$> jobExpireAt
       }
 
 createJob ::
@@ -84,12 +86,13 @@ createJob ::
   Maybe (Id (MerchantType t)) ->
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJob merchantId merchantOperatingCityId uuid maxShards jobData = do
+createJob merchantId merchantOperatingCityId uuid jobExpireAt maxShards jobData = do
   void $
-    ScheduleJob.createJob @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler maxShards $
+    ScheduleJob.createJob @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler jobExpireAt maxShards $
       JobEntry
         { jobData = jobData,
           maxErrors = 5
@@ -102,12 +105,13 @@ createJobIn ::
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
   NominalDiffTime ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJobIn merchantId merchantOperatingCityId uuid inTime maxShards jobData = do
+createJobIn merchantId merchantOperatingCityId uuid inTime jobExpireAt maxShards jobData = do
   void $
-    ScheduleJob.createJobIn @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler inTime maxShards $
+    ScheduleJob.createJobIn @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler inTime jobExpireAt maxShards $
       JobEntry
         { jobData = jobData,
           maxErrors = 5
@@ -120,12 +124,13 @@ createJobByTime ::
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
   UTCTime ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJobByTime merchantId merchantOperatingCityId uuid byTime maxShards jobData = do
+createJobByTime merchantId merchantOperatingCityId uuid byTime jobExpireAt maxShards jobData = do
   void $
-    ScheduleJob.createJobByTime @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler byTime maxShards $
+    ScheduleJob.createJobByTime @t @e @m merchantId merchantOperatingCityId uuid createWithKVScheduler byTime jobExpireAt maxShards $
       JobEntry
         { jobData = jobData,
           maxErrors = 5
@@ -187,6 +192,9 @@ markAsComplete = updateStatus Completed
 
 markAsFailed :: forall m r. (JobMonad r m) => Id AnyJob -> m ()
 markAsFailed = updateStatus Failed
+
+markAsExpired :: forall m r. (JobMonad r m) => Id AnyJob -> m ()
+markAsExpired = updateStatus Expired
 
 updateErrorCountAndFail :: forall m r. (JobMonad r m) => Id AnyJob -> Int -> m ()
 updateErrorCountAndFail (Id jobId) fCount = do

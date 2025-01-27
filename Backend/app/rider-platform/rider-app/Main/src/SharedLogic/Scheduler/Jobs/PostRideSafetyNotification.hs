@@ -51,6 +51,6 @@ postRideSafetyNotification Job {id, jobInfo} = withLogTag ("JobId-" <> id.getId)
     notifyPersonOnEvents person entityData POST_RIDE_SAFETY_CHECK
     let scheduleAfter = riderConfig.ivrTriggerDelay
         safetyIvrJobData = SafetyIVRJobData {rideId = ride.id, personId = personId}
-    createJobIn @_ @'SafetyIVR ride.merchantId ride.merchantOperatingCityId scheduleAfter (safetyIvrJobData :: SafetyIVRJobData)
+    createJobIn @_ @'SafetyIVR ride.merchantId ride.merchantOperatingCityId scheduleAfter Nothing (safetyIvrJobData :: SafetyIVRJobData)
     logDebug "Created Safety IVR Job"
   return Complete

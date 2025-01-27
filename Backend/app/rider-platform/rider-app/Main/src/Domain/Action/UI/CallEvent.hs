@@ -101,7 +101,7 @@ callOnClickTracker rideId = do
           }
 
     scheduleJobs ride merchantId merchantOperatingCityId exotelStatusCheckSchedulerDelay = do
-      createJobIn @_ @'CheckExotelCallStatusAndNotifyBPP (Just merchantId) (Just merchantOperatingCityId) (fromIntegral exotelStatusCheckSchedulerDelay) $
+      createJobIn @_ @'CheckExotelCallStatusAndNotifyBPP (Just merchantId) (Just merchantOperatingCityId) (fromIntegral exotelStatusCheckSchedulerDelay) Nothing $
         CheckExotelCallStatusAndNotifyBPPJobData
           { rideId = ride.id,
             bppRideId = ride.bppRideId,

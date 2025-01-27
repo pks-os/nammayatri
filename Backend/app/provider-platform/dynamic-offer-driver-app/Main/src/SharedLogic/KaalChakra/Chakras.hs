@@ -202,10 +202,10 @@ createFetchUserDataJob ::
   UTCTime ->
   m ()
 createFetchUserDataJob merchantId merchantOperatingCityId chakra jobData scheduledTime = case chakra of
-  LYT.Daily -> QAllJ.createJobByTime @_ @'Daily merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Weekly -> QAllJ.createJobByTime @_ @'Weekly merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Monthly -> QAllJ.createJobByTime @_ @'Monthly merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Quarterly -> QAllJ.createJobByTime @_ @'Quarterly merchantId merchantOperatingCityId scheduledTime jobData
+  LYT.Daily -> QAllJ.createJobByTime @_ @'Daily merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Weekly -> QAllJ.createJobByTime @_ @'Weekly merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Monthly -> QAllJ.createJobByTime @_ @'Monthly merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Quarterly -> QAllJ.createJobByTime @_ @'Quarterly merchantId merchantOperatingCityId scheduledTime Nothing jobData
 
 createUpdateUserTagDataJob ::
   ChakraJobs m r c =>
@@ -216,7 +216,7 @@ createUpdateUserTagDataJob ::
   UTCTime ->
   m ()
 createUpdateUserTagDataJob merchantId merchantOperatingCityId chakra jobData scheduledTime = case chakra of
-  LYT.Daily -> QAllJ.createJobByTime @_ @'DailyUpdateTag merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Weekly -> QAllJ.createJobByTime @_ @'WeeklyUpdateTag merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Monthly -> QAllJ.createJobByTime @_ @'MonthlyUpdateTag merchantId merchantOperatingCityId scheduledTime jobData
-  LYT.Quarterly -> QAllJ.createJobByTime @_ @'QuarterlyUpdateTag merchantId merchantOperatingCityId scheduledTime jobData
+  LYT.Daily -> QAllJ.createJobByTime @_ @'DailyUpdateTag merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Weekly -> QAllJ.createJobByTime @_ @'WeeklyUpdateTag merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Monthly -> QAllJ.createJobByTime @_ @'MonthlyUpdateTag merchantId merchantOperatingCityId scheduledTime Nothing jobData
+  LYT.Quarterly -> QAllJ.createJobByTime @_ @'QuarterlyUpdateTag merchantId merchantOperatingCityId scheduledTime Nothing jobData

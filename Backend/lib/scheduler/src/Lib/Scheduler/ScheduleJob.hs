@@ -38,12 +38,13 @@ createJob ::
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
   (AnyJob t -> m ()) ->
+  Maybe UTCTime ->
   Int ->
   JobEntry e ->
   m (Id AnyJob)
-createJob merchantId merchantOperatingCityId uuid createJobFunc maxShards jobEntry = do
+createJob merchantId merchantOperatingCityId uuid createJobFunc jobExpireAt maxShards jobEntry = do
   now <- getCurrentTime
-  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc now maxShards jobEntry
+  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc now jobExpireAt maxShards jobEntry
 
 createJobIn ::
   forall t (e :: t) m r.
@@ -53,14 +54,15 @@ createJobIn ::
   Text ->
   (AnyJob t -> m ()) ->
   NominalDiffTime ->
+  Maybe UTCTime ->
   Int ->
   JobEntry e ->
   m (Id AnyJob)
-createJobIn merchantId merchantOperatingCityId uuid createJobFunc diff maxShards jobEntry = do
+createJobIn merchantId merchantOperatingCityId uuid createJobFunc diff jobExpireAt maxShards jobEntry = do
   now <- getCurrentTime
   when (diff < 0) $ throwError $ InternalError "job can only be scheduled for now or for future"
   let scheduledAt = addUTCTime diff now
-  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt maxShards jobEntry
+  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt jobExpireAt maxShards jobEntry
 
 -- createJobIn' ::
 --   forall t (e :: t) m.
@@ -84,10 +86,11 @@ createJobByTime ::
   Text ->
   (AnyJob t -> m ()) ->
   UTCTime ->
+  Maybe UTCTime ->
   Int ->
   JobEntry e ->
   m (Id AnyJob)
-createJobByTime merchantId merchantOperatingCityId uuid createJobFunc scheduledAt maxShards jobEntry = do
+createJobByTime merchantId merchantOperatingCityId uuid createJobFunc scheduledAt jobExpireAt maxShards jobEntry = do
   now <- getCurrentTime
   when (scheduledAt <= now) $
     throwError $
@@ -95,7 +98,7 @@ createJobByTime merchantId merchantOperatingCityId uuid createJobFunc scheduledA
         "job can only be scheduled for the future\
         \ using createJobByTime, for scheduling for\
         \ now use createJobIn function instead"
-  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt maxShards jobEntry
+  createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt jobExpireAt maxShards jobEntry
 
 createJobImpl ::
   forall t (e :: t) m r.
@@ -105,10 +108,11 @@ createJobImpl ::
   Text ->
   (AnyJob t -> m ()) ->
   UTCTime ->
+  Maybe UTCTime ->
   Int ->
   JobEntry e ->
   m (Id AnyJob)
-createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt maxShards JobEntry {..} = do
+createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt jobExpireAt maxShards JobEntry {..} = do
   when (maxErrors <= 0) $ throwError $ InternalError "maximum errors should be positive"
   now <- getCurrentTime
   let id = Id uuid
@@ -131,7 +135,8 @@ createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt 
           status = Pending,
           parentJobId = id,
           merchantId,
-          merchantOperatingCityId
+          merchantOperatingCityId,
+          jobExpireAt
         }
 
 -- createJobImpl' ::

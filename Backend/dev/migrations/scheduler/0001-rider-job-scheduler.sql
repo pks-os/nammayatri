@@ -8,6 +8,7 @@ CREATE TABLE atlas_app.scheduler_job (
   updated_at timestamp NOT NULL,
   max_errors int NOT NULL,
   curr_errors int NOT NULL,
+  job_expire_at timestamp,
   status character varying(255) NOT NULL,
   shard_id int,
   parent_job_id character(36)

@@ -1,0 +1,1 @@
+update atlas_app.rider_config set post_ride_safety_notification_expire_time = 600;

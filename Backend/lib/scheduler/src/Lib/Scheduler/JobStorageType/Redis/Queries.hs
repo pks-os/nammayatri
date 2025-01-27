@@ -24,6 +24,8 @@ import qualified Data.Aeson.KeyMap as AKM
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HMS
+import qualified Data.Map as M
+import Data.Singletons
 import qualified Data.Text as T
 import Data.Text.Encoding as DT
 import qualified EulerHS.Language as L
@@ -36,6 +38,7 @@ import Kernel.Types.Id
 import Kernel.Utils.Common (logDebug, logError)
 import Kernel.Utils.Time (utcToMilliseconds)
 import Lib.Scheduler.Environment
+import qualified Lib.Scheduler.JobStorageType.DB.Queries as DBQ
 import qualified Lib.Scheduler.ScheduleJob as ScheduleJob
 import Lib.Scheduler.Types
 
@@ -45,11 +48,12 @@ createJob ::
   Maybe (Id (MerchantType t)) ->
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJob merchantId merchantOperatingCityId uuid maxShards jobData = do
-  void $ ScheduleJob.createJob @t @e merchantId merchantOperatingCityId uuid createJobFunc maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
+createJob merchantId merchantOperatingCityId uuid jobExpireAt maxShards jobData = do
+  void $ ScheduleJob.createJob @t @e merchantId merchantOperatingCityId uuid createJobFunc jobExpireAt maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
 
 createJobIn ::
   forall t (e :: t) m r.
@@ -58,11 +62,12 @@ createJobIn ::
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
   NominalDiffTime ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJobIn merchantId merchantOperatingCityId uuid inTime maxShards jobData = do
-  void $ ScheduleJob.createJobIn @t @e merchantId merchantOperatingCityId uuid createJobFunc inTime maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
+createJobIn merchantId merchantOperatingCityId uuid inTime jobExpireAt maxShards jobData = do
+  void $ ScheduleJob.createJobIn @t @e merchantId merchantOperatingCityId uuid createJobFunc inTime jobExpireAt maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
 
 createJobFunc :: (HedisFlow m r, HasField "schedulerSetName" r Text, HasField "maxShards" r Int) => AnyJob t -> m ()
 createJobFunc (AnyJob job) = do
@@ -83,11 +88,12 @@ createJobByTime ::
   Maybe (Id (MerchantOperatingCityType t)) ->
   Text ->
   UTCTime ->
+  Maybe UTCTime ->
   Int ->
   JobContent e ->
   m ()
-createJobByTime merchantId merchantOperatingCityId uuid byTime maxShards jobData = do
-  void $ ScheduleJob.createJobByTime @t @e merchantId merchantOperatingCityId uuid createJobFunc byTime maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
+createJobByTime merchantId merchantOperatingCityId uuid byTime jobExpireAt maxShards jobData = do
+  void $ ScheduleJob.createJobByTime @t @e merchantId merchantOperatingCityId uuid createJobFunc byTime jobExpireAt maxShards $ JobEntry {jobData = jobData, maxErrors = 5}
 
 findAll :: (JobExecutor r m, JobProcessor t) => m [AnyJob t]
 findAll = return []
@@ -104,7 +110,8 @@ getShardIdKey = "DriverOffer:Jobs:ShardId"
 getReadyTasks ::
   ( JobExecutor r m,
     JobProcessor t,
-    HasField "version" r DeploymentVersion
+    HasField "version" r DeploymentVersion,
+    HasField "jobInfoMap" r (M.Map Text Bool)
   ) =>
   Maybe Int ->
   m [(AnyJob t, BS.ByteString)]
@@ -123,7 +130,8 @@ getReadyTasks _ = do
   let recordIds = maybe [] (concatMap (Hedis.extractRecordIds . records)) result'
   let textJob = map snd result
   let parsedJobs = map (A.eitherDecode . BL.fromStrict . DT.encodeUtf8) textJob
-  case sequence parsedJobs of
+  validJobs <- filterM isValidScheduling parsedJobs
+  case sequence validJobs of
     Right jobs -> return $ zip jobs recordIds
     Left err -> do
       logDebug $ "error" <> T.pack err
@@ -135,7 +143,8 @@ getReadyTask ::
     HasField "version" r DeploymentVersion,
     HasField "consumerId" r Text,
     HasField "block" r Integer,
-    HasField "readCount" r Integer
+    HasField "readCount" r Integer,
+    HasField "jobInfoMap" r (M.Map Text Bool)
   ) =>
   m [(AnyJob t, BS.ByteString)]
 getReadyTask = do
@@ -157,11 +166,23 @@ getReadyTask = do
   let recordIds = maybe [] (concatMap (Hedis.extractRecordIds . records)) result'
   let textJob = map snd result
   let parsedJobs = map (A.eitherDecode . BL.fromStrict . DT.encodeUtf8) textJob
-  case sequence parsedJobs of
+  validJobs <- filterM isValidScheduling parsedJobs
+  case sequence validJobs of
     Right jobs -> return $ zip jobs recordIds
     Left err -> do
       logDebug $ "error" <> T.pack err
       return []
+
+isValidScheduling :: (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Either String (AnyJob t) -> m Bool
+isValidScheduling (Right (AnyJob job)) = case job.jobExpireAt of
+  Just expireAt -> do
+    let isValid = job.scheduledAt < expireAt
+    unless isValid $ do
+      let jobType' = show (fromSing $ jobType $ jobInfo job)
+      markAsExpired jobType' (id job)
+    pure isValid
+  Nothing -> pure True
+isValidScheduling (Left _) = pure False
 
 updateStatus :: (JobExecutor r m) => JobStatus -> Id AnyJob -> m ()
 updateStatus _ _ = pure ()
@@ -171,6 +192,23 @@ markAsComplete _ = pure ()
 
 markAsFailed :: (JobExecutor r m) => Id AnyJob -> m ()
 markAsFailed _ = pure ()
+
+isLongRunning :: (JobCreator r m) => Text -> m Bool
+isLongRunning jType = do
+  jobInfoMap <- asks (.jobInfoMap)
+  logDebug $ "jobInfoMap : " <> show jobInfoMap
+  let jobInfoMapping = jobInfoMap
+  pure $ fromMaybe False (M.lookup jType jobInfoMapping)
+
+markAsExpired :: forall m r. (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Text -> Id AnyJob -> m ()
+markAsExpired jobType id = do
+  schedulerType <- asks (.schedulerType)
+  case schedulerType of
+    RedisBased -> do
+      longRunning <- isLongRunning jobType
+      when longRunning do
+        DBQ.markAsExpired id
+    DbBased -> DBQ.markAsExpired id
 
 updateErrorCountAndFail :: (JobExecutor r m, Forkable m, CoreMetrics m) => Id AnyJob -> Int -> m ()
 updateErrorCountAndFail _ _ = pure ()
