@@ -303,7 +303,7 @@ public class LocationUpdateService extends Service {
                 if (ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
-                fusedLocClientForDistanceCal.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+                fusedLocClientForDistanceCal.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.getToken())
                         .addOnSuccessListener(location -> {
                             if (location != null) {
                                 isDistanceCalulation = true;
@@ -878,14 +878,14 @@ public class LocationUpdateService extends Service {
     // HELPER FUNCTIONS
     /* creates location request */
     private LocationRequest createLocationRequest(int intervalForLocationUpdate, float minDispDistance) {
-        return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY)
+        return new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
                 .setIntervalMillis(intervalForLocationUpdate)
                 .setMinUpdateDistanceMeters(minDispDistance)
                 .build();
     }
 
     private LocationRequest createDistanceCalculation(int intervalForLocationUpdate, float minDispDistance, int minInterval) {
-        return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY)
+        return new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
                 .setIntervalMillis(intervalForLocationUpdate)
                 .setMinUpdateDistanceMeters(minDispDistance)
                 .setMinUpdateIntervalMillis(minInterval)
@@ -1058,7 +1058,7 @@ public class LocationUpdateService extends Service {
                     checkLocation();
                     if (gpsMethodSwitch.equals("CURRENT")) {
                         Log.d(LOG_TAG, "TimerTriggered - CURRENT LOCATION FETCHED BY GPS");
-                        fusedLocationProviderClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+                        fusedLocationProviderClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.getToken())
                                 .addOnSuccessListener(location -> {
                                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", new Locale("en", "US"));
                                     sdf.setTimeZone(TimeZone.getTimeZone("UTC"));

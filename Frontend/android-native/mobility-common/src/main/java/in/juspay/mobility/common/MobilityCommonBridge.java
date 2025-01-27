@@ -335,7 +335,7 @@ public class MobilityCommonBridge extends HyperBridge {
         this.bridgeComponents = bridgeComponents;
         client = LocationServices.getFusedLocationProviderClient(bridgeComponents.getContext());
         if (isLocationPermissionEnabled()){
-            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.getToken())
                     .addOnSuccessListener( location -> {
                         JSONObject currLoc = new JSONObject();
                         try {
@@ -836,7 +836,7 @@ public class MobilityCommonBridge extends HyperBridge {
     @SuppressLint("MissingPermission")
     protected void updateLastKnownLocation(String callback, boolean animate, final String zoomType, boolean shouldFallBack) {
         if (!isLocationPermissionEnabled()) return;
-            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.getToken())
                     .addOnSuccessListener( location -> {
                         if (location != null) {
                             Double lat = location.getLatitude();
@@ -1787,7 +1787,7 @@ public class MobilityCommonBridge extends HyperBridge {
     }
 
     private LocationRequest createLocReq() {
-        return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY)
+        return new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
                 .setIntervalMillis(1000)
                 .setMinUpdateIntervalMillis(500)
                 .build();

@@ -373,7 +373,7 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
         FusedLocationProviderClient client = LocationServices.getFusedLocationProviderClient(this);
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+        client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellationTokenSource.getToken())
                 .addOnSuccessListener(location -> {
                     if (location != null) {
                         try {
