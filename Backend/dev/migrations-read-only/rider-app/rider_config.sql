@@ -184,3 +184,13 @@ ALTER TABLE atlas_app.rider_config ADD COLUMN min_rides_to_show_cancellation_rat
 ------- SQL updates -------
 
 ALTER TABLE atlas_app.rider_config ADD COLUMN auto_send_booking_details_via_whatsapp boolean ;
+
+
+------- SQL updates -------
+
+ALTER TABLE atlas_app.rider_config ADD COLUMN minimum_walk_distance integer  default 50;
+
+
+------- SQL updates -------
+
+ALTER TABLE atlas_app.rider_config ALTER COLUMN minimum_walk_distance SET DEFAULT 200;
