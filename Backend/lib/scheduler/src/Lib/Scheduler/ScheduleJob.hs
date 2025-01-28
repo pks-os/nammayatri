@@ -17,17 +17,19 @@ module Lib.Scheduler.ScheduleJob
   ( createJob,
     createJobByTime,
     createJobIn,
+    isValidScheduling,
   )
 where
 
+import qualified Data.Map as M
 import Data.Singletons
 import Data.Time.Clock.System ()
 import qualified Data.UUID as UU
 import Kernel.Prelude hiding (mask, throwIO)
-import Kernel.Types.Common
+import Kernel.Types.Common hiding (id)
 import Kernel.Types.Error (GenericError (InternalError))
 import Kernel.Types.Id
-import Kernel.Utils.Common
+import Kernel.Utils.Common hiding (id)
 import Lib.Scheduler.Environment
 import Lib.Scheduler.Types
 
@@ -170,3 +172,14 @@ createJobImpl merchantId merchantOperatingCityId uuid createJobFunc scheduledAt 
 --           currErrors = 0,
 --           status = Pending
 --         }
+
+isValidScheduling :: (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => (Text -> Id AnyJob -> m ()) -> Either String (AnyJob t) -> m Bool
+isValidScheduling markAsExpiredFunc (Right (AnyJob job)) = case job.jobExpireAt of
+  Just expireAt -> do
+    let isValid = job.scheduledAt < expireAt
+    unless isValid $ do
+      let jobType' = show (fromSing $ jobType $ jobInfo job)
+      markAsExpiredFunc jobType' (id job)
+    pure isValid
+  Nothing -> pure True
+isValidScheduling _ (Left _) = pure False

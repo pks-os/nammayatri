@@ -27,7 +27,7 @@ import Kernel.Types.Id
 import Kernel.Utils.Common
 import Kernel.Utils.Time ()
 import Lib.Scheduler.Environment
-import Lib.Scheduler.JobStorageType.DB.Queries as DBQ
+import qualified Lib.Scheduler.JobStorageType.DB.Queries as DBQ
 import qualified Lib.Scheduler.JobStorageType.DB.Table as BeamST
 import qualified Lib.Scheduler.JobStorageType.Redis.Queries as RQ
 import Lib.Scheduler.Types
@@ -152,8 +152,8 @@ getReadyTasks ::
 getReadyTasks mbMaxShards = do
   schedulerType <- asks (.schedulerType)
   case schedulerType of
-    RedisBased -> RQ.getReadyTasks mbMaxShards
-    DbBased -> DBQ.getReadyTasks mbMaxShards
+    RedisBased -> RQ.getReadyTasks mbMaxShards markAsExpired
+    DbBased -> DBQ.getReadyTasks mbMaxShards markAsExpired
 
 getReadyTask ::
   forall t m r.
@@ -172,8 +172,8 @@ getReadyTask ::
 getReadyTask = do
   schedulerType <- asks (.schedulerType)
   case schedulerType of
-    RedisBased -> RQ.getReadyTask
-    DbBased -> DBQ.getReadyTask
+    RedisBased -> RQ.getReadyTask markAsExpired
+    DbBased -> DBQ.getReadyTask markAsExpired
 
 updateStatus :: forall m r. (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Text -> JobStatus -> Id AnyJob -> m ()
 updateStatus jobType status id = do
@@ -219,6 +219,21 @@ markAsFailed jobType id = do
         )
         =<< isLongRunning jobType
     DbBased -> DBQ.markAsFailed id
+
+markAsExpired :: forall m r. (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Text -> Id AnyJob -> m ()
+markAsExpired jobType id = do
+  schedulerType <- asks (.schedulerType)
+  case schedulerType of
+    RedisBased -> do
+      bool
+        ( RQ.markAsExpired id
+        )
+        ( do
+            DBQ.markAsFailed id
+            RQ.markAsFailed id
+        )
+        =<< isLongRunning jobType
+    DbBased -> DBQ.markAsExpired id
 
 updateErrorCountAndFail :: forall m r. (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool), Forkable m, CoreMetrics m) => Text -> Id AnyJob -> Int -> m ()
 updateErrorCountAndFail jobType id errorCount = do

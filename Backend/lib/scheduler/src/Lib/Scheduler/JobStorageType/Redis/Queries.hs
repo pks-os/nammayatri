@@ -25,7 +25,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HMS
 import qualified Data.Map as M
-import Data.Singletons
 import qualified Data.Text as T
 import Data.Text.Encoding as DT
 import qualified EulerHS.Language as L
@@ -38,7 +37,6 @@ import Kernel.Types.Id
 import Kernel.Utils.Common (logDebug, logError)
 import Kernel.Utils.Time (utcToMilliseconds)
 import Lib.Scheduler.Environment
-import qualified Lib.Scheduler.JobStorageType.DB.Queries as DBQ
 import qualified Lib.Scheduler.ScheduleJob as ScheduleJob
 import Lib.Scheduler.Types
 
@@ -114,8 +112,9 @@ getReadyTasks ::
     HasField "jobInfoMap" r (M.Map Text Bool)
   ) =>
   Maybe Int ->
+  (Text -> Id AnyJob -> m ()) ->
   m [(AnyJob t, BS.ByteString)]
-getReadyTasks _ = do
+getReadyTasks _ markAsExpiredFunc = do
   key <- asks (.streamName)
   groupName <- asks (.groupName)
   -- let lastEntryId :: Text = "$"
@@ -130,7 +129,7 @@ getReadyTasks _ = do
   let recordIds = maybe [] (concatMap (Hedis.extractRecordIds . records)) result'
   let textJob = map snd result
   let parsedJobs = map (A.eitherDecode . BL.fromStrict . DT.encodeUtf8) textJob
-  validJobs <- filterM isValidScheduling parsedJobs
+  validJobs <- filterM (ScheduleJob.isValidScheduling markAsExpiredFunc) parsedJobs
   case sequence validJobs of
     Right jobs -> return $ zip jobs recordIds
     Left err -> do
@@ -146,8 +145,9 @@ getReadyTask ::
     HasField "readCount" r Integer,
     HasField "jobInfoMap" r (M.Map Text Bool)
   ) =>
+  (Text -> Id AnyJob -> m ()) ->
   m [(AnyJob t, BS.ByteString)]
-getReadyTask = do
+getReadyTask markAsExpiredFunc = do
   key <- asks (.streamName)
   groupName <- asks (.groupName)
   consumerId <- asks (.consumerId)
@@ -166,23 +166,12 @@ getReadyTask = do
   let recordIds = maybe [] (concatMap (Hedis.extractRecordIds . records)) result'
   let textJob = map snd result
   let parsedJobs = map (A.eitherDecode . BL.fromStrict . DT.encodeUtf8) textJob
-  validJobs <- filterM isValidScheduling parsedJobs
+  validJobs <- filterM (ScheduleJob.isValidScheduling markAsExpiredFunc) parsedJobs
   case sequence validJobs of
     Right jobs -> return $ zip jobs recordIds
     Left err -> do
       logDebug $ "error" <> T.pack err
       return []
-
-isValidScheduling :: (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Either String (AnyJob t) -> m Bool
-isValidScheduling (Right (AnyJob job)) = case job.jobExpireAt of
-  Just expireAt -> do
-    let isValid = job.scheduledAt < expireAt
-    unless isValid $ do
-      let jobType' = show (fromSing $ jobType $ jobInfo job)
-      markAsExpired jobType' (id job)
-    pure isValid
-  Nothing -> pure True
-isValidScheduling (Left _) = pure False
 
 updateStatus :: (JobExecutor r m) => JobStatus -> Id AnyJob -> m ()
 updateStatus _ _ = pure ()
@@ -193,22 +182,8 @@ markAsComplete _ = pure ()
 markAsFailed :: (JobExecutor r m) => Id AnyJob -> m ()
 markAsFailed _ = pure ()
 
-isLongRunning :: (JobCreator r m) => Text -> m Bool
-isLongRunning jType = do
-  jobInfoMap <- asks (.jobInfoMap)
-  logDebug $ "jobInfoMap : " <> show jobInfoMap
-  let jobInfoMapping = jobInfoMap
-  pure $ fromMaybe False (M.lookup jType jobInfoMapping)
-
-markAsExpired :: forall m r. (JobExecutor r m, HasField "jobInfoMap" r (M.Map Text Bool)) => Text -> Id AnyJob -> m ()
-markAsExpired jobType id = do
-  schedulerType <- asks (.schedulerType)
-  case schedulerType of
-    RedisBased -> do
-      longRunning <- isLongRunning jobType
-      when longRunning do
-        DBQ.markAsExpired id
-    DbBased -> DBQ.markAsExpired id
+markAsExpired :: (JobExecutor r m) => Id AnyJob -> m ()
+markAsExpired _ = pure ()
 
 updateErrorCountAndFail :: (JobExecutor r m, Forkable m, CoreMetrics m) => Id AnyJob -> Int -> m ()
 updateErrorCountAndFail _ _ = pure ()

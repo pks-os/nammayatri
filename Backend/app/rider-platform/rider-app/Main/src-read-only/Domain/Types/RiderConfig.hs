@@ -58,7 +58,7 @@ data RiderConfig = RiderConfig
     placeNameCacheExpiryDays :: Kernel.Prelude.Maybe Kernel.Prelude.Int,
     policeTriggerDelay :: Kernel.Prelude.NominalDiffTime,
     postRideSafetyNotificationDelay :: Kernel.Prelude.NominalDiffTime,
-    postRideSafetyNotificationExpireTime :: Kernel.Prelude.NominalDiffTime,
+    postRideSafetyNotificationExpireTime :: Kernel.Prelude.Maybe Kernel.Prelude.NominalDiffTime,
     safetyCheckEndTime :: Kernel.Types.Common.Seconds,
     safetyCheckStartTime :: Kernel.Types.Common.Seconds,
     sensitiveWords :: Kernel.Prelude.Maybe [Kernel.Prelude.Text],

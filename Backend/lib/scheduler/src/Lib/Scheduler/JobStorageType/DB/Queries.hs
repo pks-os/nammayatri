@@ -21,6 +21,7 @@
 module Lib.Scheduler.JobStorageType.DB.Queries where
 
 import qualified Data.ByteString as BS
+import qualified Data.Map as M
 import Data.Time as T hiding (getCurrentTime)
 import Kernel.Beam.Functions (FromTType'' (..), ToTType'' (..), createWithKVScheduler, findAllWithKVScheduler, findAllWithOptionsKVScheduler, findOneWithKVScheduler, updateWithKVScheduler)
 import Kernel.Prelude
@@ -159,20 +160,22 @@ getShardIdKey = "DriverOffer:Jobs:ShardId"
 
 getReadyTasks ::
   forall t r m.
-  (FromTType'' BeamST.SchedulerJob (AnyJob t), JobMonad r m) =>
+  (FromTType'' BeamST.SchedulerJob (AnyJob t), JobExecutor r m, JobMonad r m, HasField "jobInfoMap" r (M.Map Text Bool)) =>
   Maybe Int ->
+  (Text -> Id AnyJob -> m ()) ->
   m [(AnyJob t, BS.ByteString)]
-getReadyTasks mbMaxShards = do
+getReadyTasks mbMaxShards markAsExpiredFunc = do
   now <- getCurrentTime
   shardId <-
     case mbMaxShards of
       Just maxShards -> (`mod` maxShards) . fromIntegral <$> Hedis.incr getShardIdKey
       Nothing -> pure 0 -- wouldn't be used to fetch jobs in case of nothing
   res <- findAllWithOptionsKVScheduler [Se.And ([Se.Is BeamST.status $ Se.Eq Pending, Se.Is BeamST.scheduledAt $ Se.LessThanOrEq (T.utcToLocalTime T.utc now)] <> [Se.Is BeamST.shardId $ Se.Eq shardId | isJust mbMaxShards])] (Se.Asc BeamST.scheduledAt) Nothing Nothing
-  return $ zip res (map (const "rndm") [1 .. length res])
+  validRes <- filterM (\x -> ScheduleJob.isValidScheduling markAsExpiredFunc (Right x)) res
+  return $ zip validRes (map (const "rndm") [1 .. length validRes])
 
-getReadyTask :: (MonadThrow m, Log m) => m [(AnyJob t, BS.ByteString)]
-getReadyTask = throwError (InvalidRequest "Not defined for Db_Based Scheduler") $> []
+getReadyTask :: (MonadThrow m, Log m) => (Text -> Id AnyJob -> m ()) -> m [(AnyJob t, BS.ByteString)]
+getReadyTask _ = throwError (InvalidRequest "Not defined for Db_Based Scheduler") $> []
 
 updateStatus ::
   (JobMonad r m) =>

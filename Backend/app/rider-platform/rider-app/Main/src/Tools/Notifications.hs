@@ -355,11 +355,13 @@ notifyOnRideCompleted booking ride otherParties = do
     safetySettings <- QSafety.findSafetySettingsWithFallback person.id (Just person)
     riderConfig <- QRC.findByMerchantOperatingCityIdInRideFlow person.merchantOperatingCityId booking.configInExperimentVersions >>= fromMaybeM (RiderConfigDoesNotExist person.merchantOperatingCityId.getId)
     now <- getLocalCurrentTime riderConfig.timeDiffFromUtc
-    let expireAt = addUTCTime riderConfig.postRideSafetyNotificationExpireTime curentTime
+    let expireAt = case riderConfig.postRideSafetyNotificationExpireTime of
+          Just postRideSafetyNotificationExpireTime -> Just $ addUTCTime postRideSafetyNotificationExpireTime curentTime
+          Nothing -> Nothing
     when (checkSafetySettingConstraint (Just safetySettings.enablePostRideSafetyCheck) riderConfig now) $ do
       let scheduleAfter = riderConfig.postRideSafetyNotificationDelay
           postRideSafetyNotificationJobData = PostRideSafetyNotificationJobData {rideId = ride.id, personId = booking.riderId}
-      createJobIn @_ @'PostRideSafetyNotification ride.merchantId ride.merchantOperatingCityId scheduleAfter (Just expireAt) (postRideSafetyNotificationJobData :: PostRideSafetyNotificationJobData)
+      createJobIn @_ @'PostRideSafetyNotification ride.merchantId ride.merchantOperatingCityId scheduleAfter expireAt (postRideSafetyNotificationJobData :: PostRideSafetyNotificationJobData)
 
 -- title = "Trip finished!"
 -- body = "Hope you enjoyed your trip with {#driverName#}. Total Fare {#totalFare#}"
