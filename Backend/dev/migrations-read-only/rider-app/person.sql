@@ -141,3 +141,14 @@ ALTER TABLE atlas_app.person ADD COLUMN frequent_loc_geohashes text[] ;
 
 ------- SQL updates -------
 
+
+
+
+------- SQL updates -------
+
+ALTER TABLE atlas_app.person ALTER COLUMN customer_namma_tags TYPE text;
+
+
+------- SQL updates -------
+
+ALTER TABLE atlas_app.person ALTER COLUMN customer_namma_tags TYPE text[];

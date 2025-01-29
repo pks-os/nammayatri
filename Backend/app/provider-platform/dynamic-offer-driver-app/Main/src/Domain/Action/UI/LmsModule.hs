@@ -25,6 +25,7 @@ import qualified Kernel.Types.Id
 import Kernel.Utils.Common
 import qualified Lib.DriverCoins.Coins as DC
 import Lib.DriverCoins.Types as DCT
+import qualified Lib.Yudhishthira.Tools.Utils as Yudhishthira
 import qualified Storage.CachedQueries.CoinsConfig as CDCQ
 import qualified Storage.CachedQueries.Lms as SCQL
 import Storage.CachedQueries.Merchant.MerchantOperatingCity as SCQMM
@@ -487,7 +488,7 @@ generateLmsCertificate personId modId driverModuleCompletionId = do
 getExpiryTime :: Maybe Int -> Kernel.Types.Id.Id Domain.Types.Person.Person -> Environment.Flow (Maybe UTCTime)
 getExpiryTime mbExpiryConfig personId = do
   person <- QPerson.findById personId >>= fromMaybeM (PersonDoesNotExist personId.getId)
-  let driverTags = TU.convertTags $ fromMaybe [] person.driverTag
+  let driverTags = TU.convertTags $ Yudhishthira.removeTagExpiry <$> fromMaybe [] person.driverTag -- TODO include removeTagExpiry to convertTags
   let mbDriverSafetyTag = TU.accessKey "SafetyCohort" driverTags
   now <- getCurrentTime
   case mbExpiryConfig of

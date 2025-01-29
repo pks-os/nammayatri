@@ -21,6 +21,8 @@ import qualified Kernel.Types.Id
 import Kernel.Utils.Common (fromMaybeM, logDebug, throwError)
 import qualified Lib.Queries.SpecialLocation
 import qualified Lib.Queries.SpecialLocation as SpecialLocation
+import qualified Lib.Yudhishthira.Tools.Utils as Yudhishthira
+import qualified Lib.Yudhishthira.Types as LYT
 import qualified Storage.Queries.DriverInformation as QDI
 import qualified Storage.Queries.Person as QPerson
 import qualified Storage.Queries.Transformers.DriverInformation as TDI
@@ -82,16 +84,17 @@ postUpdateInfoSpecialLocWarrior (_, _, _merchantOperatingCityId) personId Specia
     getDriverTag preferredPrimarySpecialLocationId' preferredSecondarySpecialLocIds
   whenJust mbDriverTag $ \driverTag -> do
     if isSpecialLocWarrior
-      then unless (maybe False (elem driverTag) driver.driverTag) $ do
+      then -- TODO refactor conversions
+      unless (maybe False (elem $ Yudhishthira.removeTagExpiry driverTag) $ fmap Yudhishthira.removeTagExpiry <$> driver.driverTag) $ do
         logDebug $ "Driver Tag driverTag: ----------" <> personId.getId <> "  " <> show driverTag
         whenJust mbOlderDriverTag $ \olderDriverTag -> do
-          let updatedTag = addDriverTag (Just $ removeDriverTag driver.driverTag olderDriverTag) driverTag
+          let updatedTag = addDriverTag (Just $ removeDriverTag driver.driverTag $ Yudhishthira.removeTagExpiry olderDriverTag) driverTag
           logDebug $ "Driver Tag olderDriverTag: ----------" <> personId.getId <> "  " <> show olderDriverTag
-          logDebug $ "Driver Tag removeDriverTag: ----------" <> personId.getId <> "  " <> show (removeDriverTag driver.driverTag olderDriverTag)
+          logDebug $ "Driver Tag removeDriverTag: ----------" <> personId.getId <> "  " <> show (removeDriverTag driver.driverTag $ Yudhishthira.removeTagExpiry olderDriverTag)
           QPerson.updateDriverTag (Just updatedTag) personId
         whenNothing_ mbOlderDriverTag $ QPerson.updateDriverTag (Just $ addDriverTag driver.driverTag driverTag) personId
         logDebug $ "Driver Tag addDriverTag: ----------" <> personId.getId <> "  " <> show (addDriverTag driver.driverTag driverTag)
-      else when (maybe False (elem driverTag) driver.driverTag) $ QPerson.updateDriverTag (Just $ removeDriverTag driver.driverTag driverTag) personId
+      else when (maybe False (elem $ Yudhishthira.removeTagExpiry driverTag) (fmap Yudhishthira.removeTagExpiry <$> driver.driverTag)) $ QPerson.updateDriverTag (Just $ removeDriverTag driver.driverTag $ Yudhishthira.removeTagExpiry driverTag) personId
   return $
     SpecialLocWarriorInfoRes
       { isSpecialLocWarrior = isSpecialLocWarrior,
@@ -103,16 +106,17 @@ postUpdateInfoSpecialLocWarrior (_, _, _merchantOperatingCityId) personId Specia
       if notNull prefSecondarySpecialLocIds
         then do
           let secondaryLocTag = makeDriverTag (map (.getId) prefSecondarySpecialLocIds)
-          pure $ "MetroWarrior#" <> prefPrimarySpecialLocationId.getId <> "&" <> secondaryLocTag
-        else pure $ "MetroWarrior#" <> prefPrimarySpecialLocationId.getId
+          pure $ LYT.TagNameValueExpiry $ "MetroWarrior#" <> prefPrimarySpecialLocationId.getId <> "&" <> secondaryLocTag -- FIXME what is expiry here?
+        else pure $ LYT.TagNameValueExpiry $ "MetroWarrior#" <> prefPrimarySpecialLocationId.getId -- FIXME what is expiry here?
 
+-- TODO move to lib
 makeDriverTag :: [Text] -> Text
 makeDriverTag = T.intercalate "&"
 
-addDriverTag :: Maybe [Text] -> Text -> [Text]
+addDriverTag :: Maybe [LYT.TagNameValueExpiry] -> LYT.TagNameValueExpiry -> [LYT.TagNameValueExpiry]
 addDriverTag Nothing tag = [tag]
-addDriverTag (Just tags) tag = tags ++ [tag]
+addDriverTag (Just tags) tag = tags ++ [tag] -- FIXME what if tag duplicated?
 
-removeDriverTag :: Maybe [Text] -> Text -> [Text]
+removeDriverTag :: Maybe [LYT.TagNameValueExpiry] -> LYT.TagNameValue -> [LYT.TagNameValueExpiry]
 removeDriverTag Nothing _ = []
-removeDriverTag (Just tags) tag = filter (/= tag) tags
+removeDriverTag (Just tags) tag = filter ((/= tag) . Yudhishthira.removeTagExpiry) tags

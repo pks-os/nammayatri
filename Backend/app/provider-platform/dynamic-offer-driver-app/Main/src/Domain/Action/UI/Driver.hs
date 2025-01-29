@@ -208,6 +208,7 @@ import Lib.Payment.Domain.Types.PaymentTransaction
 import Lib.Payment.Storage.Queries.PaymentTransaction
 import Lib.Scheduler.JobStorageType.SchedulerType (createJobIn)
 import qualified Lib.Types.SpecialLocation as SL
+import qualified Lib.Yudhishthira.Tools.Utils as Yudhishthira
 import SharedLogic.Allocator (AllocatorJobType (..), ScheduledRideAssignedOnUpdateJobData (..))
 import qualified SharedLogic.BehaviourManagement.CancellationRate as SCR
 import SharedLogic.Booking
@@ -909,7 +910,7 @@ buildDriverEntityRes (person, driverInfo, driverStats, merchantOpCityId) = do
               return False
             else return driverInfo.onRide
       else return driverInfo.onRide
-  let driverTags = TU.convertTags $ fromMaybe [] person.driverTag
+  let driverTags = TU.convertTags $ Yudhishthira.removeTagExpiry <$> fromMaybe [] person.driverTag
   let mbDriverSafetyTag = TU.accessKey "SafetyCohort" driverTags
       mbDriverSafetyScore = TU.accessKey "SafetyScore" driverTags
   return $

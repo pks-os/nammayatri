@@ -31,6 +31,7 @@ import Kernel.Types.Id
 import Kernel.Types.Version
 import Kernel.Utils.Common hiding (Value)
 import Kernel.Utils.Version
+import qualified Lib.Yudhishthira.Types as LYT
 import qualified Sequelize as Se
 import qualified SharedLogic.External.LocationTrackingService.Flow as LF
 import qualified SharedLogic.External.LocationTrackingService.Types as LT
@@ -451,8 +452,10 @@ findAllMerchantIdByPhoneNo countryCode mobileNumberHash =
 updateMerchantOperatingCityId :: (MonadFlow m, EsqDBFlow m r, CacheFlow m r) => Id Person -> Id DMOC.MerchantOperatingCity -> m ()
 updateMerchantOperatingCityId (Id driverId) (Id opCityId) = updateWithKV [Se.Set BeamP.merchantOperatingCityId (Just opCityId)] [Se.Is BeamP.id $ Se.Eq driverId]
 
-updateTag :: (MonadFlow m, EsqDBFlow m r, CacheFlow m r) => Id Person -> [Text] -> m ()
-updateTag (Id driverId) tags = updateOneWithKV [Se.Set BeamP.driverTag $ Just tags] [Se.Is BeamP.id $ Se.Eq driverId]
+-- FIXME what if all tags expired and we need to remove them?
+-- FIXME why two functions updateTag and Storage.Queries.Person.updateDriverTag?
+updateTag :: (MonadFlow m, EsqDBFlow m r, CacheFlow m r) => Id Person -> [LYT.TagNameValueExpiry] -> m ()
+updateTag (Id driverId) tags = updateOneWithKV [Se.Set BeamP.driverTag $ Just (LYT.getTagNameValueExpiry <$> tags)] [Se.Is BeamP.id $ Se.Eq driverId]
 
 updateMobileNumberAndCode :: (MonadFlow m, EsqDBFlow m r, CacheFlow m r, EncFlow m r) => Person -> m ()
 updateMobileNumberAndCode person = do

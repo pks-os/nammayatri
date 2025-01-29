@@ -21,6 +21,7 @@ data NammaTagChakra = NammaTagChakra
     tagValidity :: Maybe Hours,
     tagRule :: TagRule,
     actionEngine :: Maybe Value
+    -- expiryIn :: Maybe Seconds
   }
   deriving (Show, Read, Generic, ToJSON, FromJSON, ToSchema)
 

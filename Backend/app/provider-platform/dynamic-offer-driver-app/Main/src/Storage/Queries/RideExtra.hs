@@ -359,7 +359,7 @@ updateAll rideId ride = do
       Se.Set BeamR.tollCharges ride.tollCharges,
       Se.Set BeamR.tollNames ride.tollNames,
       Se.Set BeamR.tollConfidence ride.tollConfidence,
-      Se.Set BeamR.rideTags ride.rideTags,
+      Se.Set BeamR.rideTags (fmap (.getTagNameValue) <$> ride.rideTags),
       Se.Set BeamR.updatedAt now,
       Se.Set BeamR.rideEndedBy ride.rideEndedBy
     ]

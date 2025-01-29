@@ -16,6 +16,7 @@ import Kernel.Types.Error
 import qualified Kernel.Types.Id
 import Kernel.Utils.Common (CacheFlow, EsqDBFlow, MonadFlow, fromMaybeM, getCurrentTime)
 import qualified Kernel.Utils.Version
+import qualified Lib.Yudhishthira.Types
 import qualified Sequelize as Se
 import qualified Storage.Beam.Person as Beam
 import Storage.Queries.PersonExtra as ReExport
@@ -65,8 +66,10 @@ updateDeviceToken ::
   (Kernel.Prelude.Maybe Kernel.External.Notification.FCM.Types.FCMRecipientToken -> Kernel.Types.Id.Id Domain.Types.Person.Person -> m ())
 updateDeviceToken deviceToken id = do _now <- getCurrentTime; updateOneWithKV [Se.Set Beam.deviceToken deviceToken, Se.Set Beam.updatedAt _now] [Se.Is Beam.id $ Se.Eq (Kernel.Types.Id.getId id)]
 
-updateDriverTag :: (EsqDBFlow m r, MonadFlow m, CacheFlow m r) => (Kernel.Prelude.Maybe [Kernel.Prelude.Text] -> Kernel.Types.Id.Id Domain.Types.Person.Person -> m ())
-updateDriverTag driverTag id = do _now <- getCurrentTime; updateOneWithKV [Se.Set Beam.driverTag driverTag, Se.Set Beam.updatedAt _now] [Se.Is Beam.id $ Se.Eq (Kernel.Types.Id.getId id)]
+updateDriverTag :: (EsqDBFlow m r, MonadFlow m, CacheFlow m r) => (Kernel.Prelude.Maybe [Lib.Yudhishthira.Types.TagNameValueExpiry] -> Kernel.Types.Id.Id Domain.Types.Person.Person -> m ())
+updateDriverTag driverTag id = do
+  _now <- getCurrentTime
+  updateOneWithKV [Se.Set Beam.driverTag ((fmap (.getTagNameValueExpiry) <$>) driverTag), Se.Set Beam.updatedAt _now] [Se.Is Beam.id $ Se.Eq (Kernel.Types.Id.getId id)]
 
 updateName :: (EsqDBFlow m r, MonadFlow m, CacheFlow m r) => (Kernel.Prelude.Text -> Kernel.Types.Id.Id Domain.Types.Person.Person -> m ())
 updateName firstName id = do _now <- getCurrentTime; updateOneWithKV [Se.Set Beam.firstName firstName, Se.Set Beam.updatedAt _now] [Se.Is Beam.id $ Se.Eq (Kernel.Types.Id.getId id)]
@@ -107,7 +110,7 @@ updateByPrimaryKey (Domain.Types.Person.Person {..}) = do
       Se.Set Beam.createdAt createdAt,
       Se.Set Beam.description description,
       Se.Set Beam.deviceToken deviceToken,
-      Se.Set Beam.driverTag driverTag,
+      Se.Set Beam.driverTag ((fmap (.getTagNameValueExpiry) <$>) driverTag),
       Se.Set Beam.email email,
       Se.Set Beam.faceImageId (Kernel.Types.Id.getId <$> faceImageId),
       Se.Set Beam.firstName firstName,

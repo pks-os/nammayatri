@@ -65,6 +65,7 @@ import qualified Kernel.Utils.Predicates as P
 import Kernel.Utils.SlidingWindowLimiter
 import Kernel.Utils.Validation
 import Kernel.Utils.Version
+import qualified Lib.Yudhishthira.Types as LYT
 import qualified SharedLogic.MessageBuilder as MessageBuilder
 import qualified Storage.Cac.TransporterConfig as SCTC
 import Storage.CachedQueries.Merchant as QMerchant
@@ -377,7 +378,7 @@ makePerson req transporterConfig mbBundleVersion mbClientVersion mbClientConfigV
         registrationLat = req.registrationLat,
         registrationLon = req.registrationLon,
         useFakeOtp,
-        driverTag = Just ["SafetyCohort#New"]
+        driverTag = Just [LYT.TagNameValueExpiry "SafetyCohort#New"] -- FIXME what is expiry here?
       }
 
 makeSession ::

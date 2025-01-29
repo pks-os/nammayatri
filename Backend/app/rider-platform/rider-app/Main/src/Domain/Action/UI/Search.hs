@@ -64,6 +64,7 @@ import Kernel.Utils.Version
 import qualified Lib.JourneyLeg.Types as JPT
 import qualified Lib.Queries.SpecialLocation as QSpecialLocation
 import Lib.SessionizerMetrics.Types.Event
+import qualified Lib.Yudhishthira.Types as LYT
 import qualified SharedLogic.MerchantConfig as SMC
 import SharedLogic.Search
 import qualified SharedLogic.Serviceability as Serviceability
@@ -247,7 +248,7 @@ search personId req bundleVersion clientVersion clientConfigVersion_ mbRnVersion
     backfillCustomerNammaTags Person.Person {..} =
       if isNothing customerNammaTags
         then do
-          let genderTag = "Gender#" <> show gender -- handle it properly later
+          let genderTag = LYT.TagNameValueExpiry $ "Gender#" <> show gender -- handle it properly later -- TODO what is expiry here?
           Person.Person {customerNammaTags = Just [genderTag], ..}
         else Person.Person {..}
 

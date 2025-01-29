@@ -15,6 +15,7 @@ import qualified Kernel.Types.Beckn.Context
 import qualified Kernel.Types.Common
 import qualified Kernel.Types.Id
 import qualified Lib.Types.SpecialLocation
+import qualified Lib.Yudhishthira.Types
 import qualified Tools.Beam.UtilsTH
 import qualified Tools.Maps
 
@@ -29,7 +30,7 @@ data SearchRequest = SearchRequest
     currency :: Kernel.Types.Common.Currency,
     customerCancellationDues :: Kernel.Prelude.Maybe Kernel.Types.Common.HighPrecMoney,
     customerLanguage :: Kernel.Prelude.Maybe Tools.Maps.Language,
-    customerNammaTags :: Kernel.Prelude.Maybe [Kernel.Prelude.Text],
+    customerNammaTags :: Kernel.Prelude.Maybe [Lib.Yudhishthira.Types.TagNameValue],
     device :: Kernel.Prelude.Maybe Kernel.Prelude.Text,
     disabilityTag :: Kernel.Prelude.Maybe Kernel.Prelude.Text,
     distanceUnit :: Kernel.Types.Common.DistanceUnit,
@@ -57,7 +58,7 @@ data SearchRequest = SearchRequest
     returnTime :: Kernel.Prelude.Maybe Kernel.Prelude.UTCTime,
     riderId :: Kernel.Prelude.Maybe (Kernel.Types.Id.Id Domain.Types.RiderDetails.RiderDetails),
     roundTrip :: Kernel.Prelude.Maybe Kernel.Prelude.Bool,
-    searchTags :: Kernel.Prelude.Maybe [Kernel.Prelude.Text],
+    searchTags :: Kernel.Prelude.Maybe [Lib.Yudhishthira.Types.TagNameValue],
     specialLocationTag :: Kernel.Prelude.Maybe Kernel.Prelude.Text,
     startTime :: Kernel.Prelude.UTCTime,
     stops :: [Domain.Types.Location.Location],

@@ -1,6 +1,6 @@
 module Tools.Constants where
 
-import Kernel.Prelude
+import qualified Lib.Yudhishthira.Types as LYT
 
-rejectUpgradeTag :: Text
-rejectUpgradeTag = "CabUpgradeChoice#Reject"
+rejectUpgradeTag :: LYT.TagNameValueExpiry
+rejectUpgradeTag = LYT.TagNameValueExpiry "CabUpgradeChoice#Reject" -- TODO what is expiry here?

@@ -111,6 +111,8 @@ import Kernel.Utils.Common
 import Kernel.Utils.Validation (runRequestValidation)
 import Lib.Scheduler.JobStorageType.SchedulerType as JC
 import qualified Lib.Yudhishthira.Flow.Dashboard as Yudhishthira
+import qualified Lib.Yudhishthira.Tools.Utils as Yudhishthira
+import qualified Lib.Yudhishthira.Types as LYT
 import SharedLogic.Allocator
 import qualified SharedLogic.DeleteDriver as DeleteDriver
 import SharedLogic.DriverOnboarding
@@ -795,24 +797,29 @@ postDriverUpdateDriverTag merchantShortId opCity driverId req = do
   merchantOpCityId <- CQMOC.getMerchantOpCityId Nothing merchant (Just opCity)
   let personId = cast @Common.Driver @DP.Person driverId
   driver <- B.runInReplica $ QPerson.findById personId >>= fromMaybeM (PersonDoesNotExist personId.getId)
-  when (req.isAddingTag && maybe False (elem req.driverTag) driver.driverTag) $ throwError (InvalidRequest "Tag already exists")
+  -- maybe update expiry instead of throw error?
+  when (req.isAddingTag && maybe False (elem req.driverTag) (fmap Yudhishthira.removeTagExpiry <$> driver.driverTag)) $ throwError (InvalidRequest "Tag already exists")
   -- merchant access checking
   unless (merchant.id == driver.merchantId && merchantOpCityId == driver.merchantOperatingCityId) $ throwError (PersonDoesNotExist personId.getId)
-  Yudhishthira.verifyTag req.driverTag
+  mbNammTag <- Yudhishthira.verifyTag req.driverTag
+  now <- getCurrentTime
   let tag =
         if req.isAddingTag
-          then addDriverTag driver.driverTag req.driverTag
+          then do
+            let reqDriverTagWithExpiry = Yudhishthira.addTagExpiry req.driverTag (mbNammTag >>= (.validity)) now
+            addDriverTag driver.driverTag reqDriverTagWithExpiry
           else removeDriverTag driver.driverTag req.driverTag
   QPerson.updateTag personId tag
   pure Success
 
-addDriverTag :: Maybe [Text] -> Text -> [Text]
+-- TODO move to lib
+addDriverTag :: Maybe [LYT.TagNameValueExpiry] -> LYT.TagNameValueExpiry -> [LYT.TagNameValueExpiry]
 addDriverTag Nothing tag = [tag]
-addDriverTag (Just tags) tag = tags ++ [tag]
+addDriverTag (Just tags) tag = tags ++ [tag] -- FIXME what if tag duplicated?
 
-removeDriverTag :: Maybe [Text] -> Text -> [Text]
+removeDriverTag :: Maybe [LYT.TagNameValueExpiry] -> LYT.TagNameValue -> [LYT.TagNameValueExpiry]
 removeDriverTag Nothing _ = []
-removeDriverTag (Just tags) tag = filter (/= tag) tags
+removeDriverTag (Just tags) tag = filter ((/= tag) . Yudhishthira.removeTagExpiry) tags
 
 ---------------------------------------------------------------------
 postDriverClearFee :: ShortId DM.Merchant -> Context.City -> Id Common.Driver -> Common.ClearDriverFeeReq -> Flow APISuccess

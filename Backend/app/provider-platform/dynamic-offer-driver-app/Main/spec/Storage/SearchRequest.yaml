@@ -17,6 +17,7 @@ imports:
   DbHash: Kernel.External.Encryption
   TripCategory: Domain.Types.Trip
   Person: Domain.Types.Person
+  TagNameValue: Lib.Yudhishthira.Types
 
 SearchRequest:
   derives: Generic,Show,ToJSON,FromJSON
@@ -63,8 +64,8 @@ SearchRequest:
     roundTrip: Maybe Bool
     isAdvanceBookingEnabled: Bool
     isDashboardRequest: Bool
-    customerNammaTags: "Maybe [Text]"
-    searchTags: "Maybe [Text]"
+    customerNammaTags: "Maybe [TagNameValue]"
+    searchTags: "Maybe [TagNameValue]"
     startTime: UTCTime
     createdAt: UTCTime
     tripCategory: Maybe TripCategory
@@ -82,6 +83,8 @@ SearchRequest:
     isAdvanceBookingEnabled: Maybe Bool
     distanceUnit: Maybe DistanceUnit
     isDashboardRequest: Maybe Bool
+    customerNammaTags: "Maybe [Text]"
+    searchTags: "Maybe [Text]"
   beamFields:
     driverDefaultExtraFee:
       driverDefaultExtraFee: Maybe Money
@@ -106,6 +109,8 @@ SearchRequest:
     isAdvanceBookingEnabled: Just isAdvanceBookingEnabled|E
     distanceUnit: Kernel.Prelude.Just|I
     isDashboardRequest: Just isDashboardRequest|E
+    customerNammaTags: (fmap (.getTagNameValue) <$>)
+    searchTags: (fmap (.getTagNameValue) <$>)
 
   intermediateTransformers:
     fromTType:
@@ -128,6 +133,9 @@ SearchRequest:
     isAdvanceBookingEnabled: fromMaybe False isAdvanceBookingEnabled|E
     distanceUnit: Kernel.Prelude.fromMaybe Kernel.Types.Common.Meter|I
     isDashboardRequest: fromMaybe False isDashboardRequest|E
+    customerNammaTags: (fmap Lib.Yudhishthira.Types.TagNameValue <$>)
+    searchTags: (fmap Lib.Yudhishthira.Types.TagNameValue <$>)
+
 
   constraints:
     id: PrimaryKey

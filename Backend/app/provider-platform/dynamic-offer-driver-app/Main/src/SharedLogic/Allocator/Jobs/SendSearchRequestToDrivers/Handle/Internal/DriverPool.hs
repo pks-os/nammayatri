@@ -582,7 +582,7 @@ makeTaggedDriverPool ::
   [DriverPoolWithActualDistResult] ->
   Int ->
   Bool ->
-  Maybe [Text] ->
+  Maybe [LYT.TagNameValue] ->
   Maybe Int ->
   m (Maybe Int, [DriverPoolWithActualDistResult])
 makeTaggedDriverPool mOCityId timeDiffFromUtc searchReq onlyNewDrivers batchSize isOnRidePool customerNammaTags mbPoolingLogicVersion = do

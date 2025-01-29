@@ -15,23 +15,25 @@ import Kernel.Prelude
 import Kernel.Types.Distance (metersToHighPrecMeters)
 import Kernel.Utils.CalculateDistance (distanceBetweenInMeters)
 import Lib.Yudhishthira.Tools.Utils
+import qualified Lib.Yudhishthira.Types as LYT
 import Tools.Constants
 
-convertTags :: [Text] -> A.Value
-convertTags input = A.object $ map toObject pairs
+-- TODO test (and maybe move to Lib)
+convertTags :: [LYT.TagNameValue] -> A.Value
+convertTags input = A.object $ mapMaybe toObject pairs
   where
-    pairs = map (T.splitOn "#") input
-    toObject [name, value] = do
+    pairs = map (T.splitOn "#" . LYT.getTagNameValue) input
+    toObject (name : value : _xs) = Just $ do
+      -- TODO we can revert this change since we use newtype without expiry
+      -- expiredAt ignored here, check is it correct?
       let valueArr = T.splitOn "&" value
       case valueArr of
         [element] -> (A.fromText $ T.strip name :: A.Key) A..= fromMaybe A.Null (textToMaybeValue (T.strip element) :: Maybe A.Value)
         elements -> do
           let jsonValues = map A.String elements
           (A.fromText $ T.strip name :: A.Key) A..= A.Array (Vector.fromList jsonValues)
-    toObject [name] = (A.fromText $ T.strip name :: A.Key) A..= A.Null
-    toObject xs = do
-      let reconstructed = T.intercalate "#" xs
-      (A.fromText $ T.strip reconstructed :: A.Key) A..= A.Null
+    toObject [name] = Just $ (A.fromText $ T.strip name :: A.Key) A..= A.Null
+    toObject [] = Nothing -- should never happen
 
 accessKey :: T.Text -> A.Value -> Maybe A.Value
 accessKey keyValue (A.Object obj) = KM.lookup (A.fromText keyValue) obj

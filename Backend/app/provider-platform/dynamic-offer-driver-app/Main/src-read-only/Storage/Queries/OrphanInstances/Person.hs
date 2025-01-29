@@ -12,6 +12,7 @@ import Kernel.Types.Error
 import qualified Kernel.Types.Id
 import Kernel.Utils.Common (CacheFlow, EsqDBFlow, MonadFlow, fromMaybeM, getCurrentTime)
 import qualified Kernel.Utils.Version
+import qualified Lib.Yudhishthira.Types
 import qualified Storage.Beam.Person as Beam
 import qualified Storage.Queries.Transformers.Person
 
@@ -35,7 +36,7 @@ instance FromTType' Beam.Person Domain.Types.Person.Person where
             createdAt = createdAt,
             description = description,
             deviceToken = deviceToken,
-            driverTag = driverTag,
+            driverTag = (fmap Lib.Yudhishthira.Types.TagNameValueExpiry <$>) driverTag,
             email = email,
             faceImageId = Kernel.Types.Id.Id <$> faceImageId,
             firstName = firstName,
@@ -82,7 +83,7 @@ instance ToTType' Beam.Person Domain.Types.Person.Person where
         Beam.createdAt = createdAt,
         Beam.description = description,
         Beam.deviceToken = deviceToken,
-        Beam.driverTag = driverTag,
+        Beam.driverTag = (fmap (.getTagNameValueExpiry) <$>) driverTag,
         Beam.email = email,
         Beam.faceImageId = Kernel.Types.Id.getId <$> faceImageId,
         Beam.firstName = firstName,

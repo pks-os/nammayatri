@@ -1,5 +1,6 @@
 module Lib.Yudhishthira.Tools.Utils where
 
+-- TODO export list
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as DBL
 import qualified Data.String.Conversions as CS
@@ -67,3 +68,71 @@ textToMaybeValue txt =
   case decodeText txt of
     Just value -> Just value
     Nothing -> decodeText (T.concat ["\"", txt, "\""])
+
+-- TODO also check other places in code, where assignedAt required, try to use single function for show and parse
+mkTagNameValueExpiry ::
+  LYT.TagName ->
+  LYT.TagValue ->
+  Maybe Hours ->
+  UTCTime ->
+  LYT.TagNameValueExpiry
+mkTagNameValueExpiry (LYT.TagName tagName) tagValue mbValidity now = do
+  let mbExpiredAt = mbValidity <&> (\validity -> addUTCTime (3600 * fromIntegral validity) now) -- TODO test
+  let showTagValue = case tagValue of
+        LYT.TextValue tagValueText -> tagValueText
+        LYT.NumberValue tagValueDouble -> show tagValueDouble
+        LYT.ArrayValue tagValueArray -> T.intercalate "&" tagValueArray
+  LYT.TagNameValueExpiry $ tagName <> "#" <> showTagValue <> maybe "" (\expiredAt -> "#" <> show expiredAt) mbExpiredAt
+
+mkTagNameValue ::
+  LYT.TagName ->
+  LYT.TagValue ->
+  LYT.TagNameValue
+mkTagNameValue (LYT.TagName tagName) tagValue = do
+  let showTagValue = case tagValue of
+        LYT.TextValue tagValueText -> tagValueText
+        LYT.NumberValue tagValueDouble -> show tagValueDouble
+        LYT.ArrayValue tagValueArray -> T.intercalate "&" tagValueArray
+  LYT.TagNameValue $ tagName <> "#" <> showTagValue
+
+-- TODO test this
+addTagExpiry ::
+  LYT.TagNameValue ->
+  Maybe Hours ->
+  UTCTime ->
+  LYT.TagNameValueExpiry
+addTagExpiry (LYT.TagNameValue txt) (Just validity) now = do
+  let expiredAt = addUTCTime (3600 * fromIntegral validity) now
+  LYT.TagNameValueExpiry $ case T.splitOn "#" txt of
+    (tagName : tagValue : _oldExpiredAt : xs) -> T.intercalate "#" (tagName : tagValue : show expiredAt : xs)
+    [tagName, tagValue] -> T.intercalate "#" [tagName, tagValue, show expiredAt]
+    [tagName] -> T.intercalate "#" [tagName, "", show expiredAt]
+    [] -> T.intercalate "#" ["", "", show expiredAt] -- should never happen
+addTagExpiry (LYT.TagNameValue txt) Nothing _now = LYT.TagNameValueExpiry txt
+
+removeTagExpiry ::
+  LYT.TagNameValueExpiry ->
+  LYT.TagNameValue
+removeTagExpiry (LYT.TagNameValueExpiry txt) = do
+  LYT.TagNameValue $ case T.splitOn "#" txt of
+    (tagName : tagValue : _oldExpiredAt : xs) -> T.intercalate "#" (tagName : tagValue : "" : xs)
+    _ -> txt
+
+-- helper class for reduce boilerplate
+class HasTagNameValue tag where
+  convertToTagNameValue :: tag -> LYT.TagNameValue
+
+instance HasTagNameValue LYT.TagNameValue where
+  convertToTagNameValue = identity
+
+instance HasTagNameValue LYT.TagNameValueExpiry where
+  convertToTagNameValue = removeTagExpiry
+
+compareTagNameValue :: (HasTagNameValue tag1, HasTagNameValue tag2) => tag1 -> tag2 -> Bool
+compareTagNameValue tag1 tag2 = convertToTagNameValue tag1 == convertToTagNameValue tag2
+
+elemTagNameValue :: (HasTagNameValue tag1, HasTagNameValue tag2) => tag1 -> [tag2] -> Bool
+elemTagNameValue tag tags = convertToTagNameValue tag `elem` (convertToTagNameValue <$> tags)
+
+-- compareTagNameValueExpiry :: LYT.TagNameValueExpiry -> LYT.TagNameValueExpiry -> Bool
+-- compareTagNameValueExpiry tag1 tag2 = tag1.getTagNameValueExpiry == tag2.getTagNameValueExpiry

@@ -41,8 +41,8 @@ import qualified Lib.Yudhishthira.Types.NammaTag as DNT
 import qualified Lib.Yudhishthira.Types.UserData as DUserData
 
 data Handle m action = Handle
-  { getUserTags :: Id Yudhishthira.User -> m (Maybe [Yudhishthira.TagNameValue]), -- Nothing if user not found
-    updateUserTags :: Id Yudhishthira.User -> [Yudhishthira.TagNameValue] -> m (),
+  { getUserTags :: Id Yudhishthira.User -> m (Maybe [Yudhishthira.TagNameValueExpiry]), -- Nothing if user not found
+    updateUserTags :: Id Yudhishthira.User -> [Yudhishthira.TagNameValueExpiry] -> m (),
     action :: Id Yudhishthira.User -> action -> m ()
   }
 
@@ -144,6 +144,7 @@ updateUserTagsHandlerInternal h req = withLogTag ("EventId-" <> req.eventId.getI
   -- getting this, but maybe limit offset will leave some part of the data of trailing guyz begind so using this just as a medium to get the userIds to do tagging for.
 
   let defaultUserDataMap = Parse.mkDefaultUserDataMap chakraQueries
+  now <- getCurrentTime
   res <- case req.usersSet of
     Yudhishthira.ALL_USERS -> do
       if null batchedUserData
@@ -156,11 +157,11 @@ updateUserTagsHandlerInternal h req = withLogTag ("EventId-" <> req.eventId.getI
               pure $ Yudhishthira.RunKaalChakraJobRes {eventId = Just eventId, tags = Nothing, users = Nothing, chakraBatchState = Yudhishthira.Completed}
             else do
               forM_ batchedUserData $
-                kaalChakraEventUser h filteredTags eventId defaultUserDataMap . (.userId)
+                kaalChakraEventUser h filteredTags eventId defaultUserDataMap now . (.userId)
               pure $ Yudhishthira.RunKaalChakraJobRes {eventId = Just eventId, tags = Nothing, users = Nothing, chakraBatchState = Yudhishthira.Continue req.batchDelayInSec}
     _ -> do
       usersAPIEntity <- forM batchedUserData $ \(DUserData.UserData {userId}) -> do
-        kaalChakraEventUser h filteredTags eventId defaultUserDataMap userId
+        kaalChakraEventUser h filteredTags eventId defaultUserDataMap now userId
       let tagsAPIEntity = mkTagAPIEntity <$> filteredTags
       pure $ Yudhishthira.RunKaalChakraJobRes {eventId = Just eventId, tags = Just tagsAPIEntity, users = Just usersAPIEntity, chakraBatchState = Yudhishthira.Completed}
   endTime <- getCurrentTime
@@ -220,9 +221,10 @@ kaalChakraEventUser ::
   [DNT.NammaTag] ->
   Id Yudhishthira.Event ->
   [Parse.DefaultDataMap] ->
+  UTCTime ->
   Id Yudhishthira.User ->
   m Yudhishthira.RunKaalChakraJobResForUser
-kaalChakraEventUser h filteredTags eventId defaultUserDataMap userId = withLogTag ("UserId-" <> userId.getId) do
+kaalChakraEventUser h filteredTags eventId defaultUserDataMap now userId = withLogTag ("UserId-" <> userId.getId) do
   userDataList <- QUserData.findAllByUserIdAndEventId userId eventId
   -- Skip current user instead of throwing error
   let eUserData = do
@@ -230,6 +232,7 @@ kaalChakraEventUser h filteredTags eventId defaultUserDataMap userId = withLogTa
         case userData of
           A.Object userDataObj -> pure . first A.Object $ Parse.appendDefaultValues userId userDataObj defaultUserDataMap
           _ -> Left $ "Object expected in user data: " <> show userData -- should never occur because appendUserDataValue always returns Object
+  mbOldTagsText <- h.getUserTags userId
   case eUserData of
     Right (userDataValue, accQueries) -> do
       unless (null accQueries) $ do
@@ -244,21 +247,55 @@ kaalChakraEventUser h filteredTags eventId defaultUserDataMap userId = withLogTa
       case tagValuesTuple of
         [] -> do
           logDebug ("No tags should be applied for current user: " <> show userId)
-          pure $ mkRunKaalChakraJobResForUser userId userDataValue Nothing Nothing
+          mbNewTagsText <- updateRemovedExpiredTags h userId now mbOldTagsText
+          pure $ mkRunKaalChakraJobResForUser userId userDataValue mbOldTagsText mbNewTagsText
         _ -> do
-          mbOldTagsText <- h.getUserTags userId
           -- Skip current user instead of throwing error
-          case updateUserTagValues userId tagValuesTuple mbOldTagsText of
+          case updateUserTagValues userId tagValuesTuple mbOldTagsText now of
             Right (updTagsText, actionDataList) -> do
-              if Just updTagsText /= mbOldTagsText
+              let updTagsText' = removeExpiredTags now updTagsText
+              -- compare raw String, because when we need to update changed value in db, even if only expiry changed
+              let showRawTags tags = show @String @[Yudhishthira.TagNameValueExpiry] tags
+              if Just (showRawTags updTagsText') /= (showRawTags <$> mbOldTagsText)
                 then do
                   h.updateUserTags userId updTagsText
                   forM_ actionDataList $ \actionData -> do
                     runTagAction h userId actionData
                 else logDebug $ "Tags did not changed for current user: " <> show userId
               pure $ mkRunKaalChakraJobResForUser userId userDataValue mbOldTagsText (Just updTagsText)
-            Left err -> logError err $> mkRunKaalChakraJobResForUser userId userDataValue mbOldTagsText Nothing
-    Left err -> logError err $> mkRunKaalChakraJobResForUser userId (A.Object A.empty) Nothing Nothing
+            Left err -> do
+              logError err
+              mbNewTagsText <- updateRemovedExpiredTags h userId now mbOldTagsText
+              pure $ mkRunKaalChakraJobResForUser userId userDataValue mbOldTagsText mbNewTagsText
+    Left err -> do
+      logError err
+      mbNewTagsText <- updateRemovedExpiredTags h userId now mbOldTagsText
+      pure $ mkRunKaalChakraJobResForUser userId (A.Object A.empty) mbOldTagsText mbNewTagsText
+
+-- TODO rename this to removeExpiredTags
+updateRemovedExpiredTags ::
+  Monad m =>
+  Handle m action ->
+  Id Yudhishthira.User ->
+  UTCTime ->
+  Maybe [Yudhishthira.TagNameValueExpiry] ->
+  m (Maybe [Yudhishthira.TagNameValueExpiry])
+updateRemovedExpiredTags h userId now mbOldTagsText = forM mbOldTagsText $ \oldTagsText -> do
+  let newTagsText = removeExpiredTags now oldTagsText
+  when (length newTagsText /= length oldTagsText) $
+    h.updateUserTags userId newTagsText
+  pure newTagsText
+
+-- remove this (include to updateRemovedExpiredTags)
+-- what about users, that are not present in chakra queries?
+removeExpiredTags ::
+  UTCTime ->
+  [Yudhishthira.TagNameValueExpiry] ->
+  [Yudhishthira.TagNameValueExpiry]
+removeExpiredTags now = filter $ \tagValue -> do
+  case parseTagExpiredAt tagValue of
+    Nothing -> True
+    Just expiredIn -> expiredIn >= now
 
 runTagAction ::
   forall m action.
@@ -270,7 +307,8 @@ runTagAction ::
 runTagAction h userId actionData = do
   let tagName = Yudhishthira.TagName actionData.tag.name
   let tagValueNew = actionData.tagValueNew
-  if actionData.tagNameValueOld == Just actionData.tagNameValueNew
+  -- here we do not run action if expiry changed, only if tag value changed
+  if (compareTagNameValue actionData.tagNameValueNew <$> actionData.tagNameValueOld) == Just True
     then logDebug $ "Tag " <> show tagName <> " did not changed for user; skipping."
     else whenJust actionData.tag.actionEngine $ \tagActionEngine -> do
       case forM actionData.tagNameValueOld (parseTagValueFromText actionData.tag) of
@@ -313,8 +351,8 @@ mkTagAPIEntity DNT.NammaTag {..} = Yudhishthira.TagAPIEntity {..}
 mkRunKaalChakraJobResForUser ::
   Id Yudhishthira.User ->
   A.Value ->
-  Maybe [Yudhishthira.TagNameValue] ->
-  Maybe [Yudhishthira.TagNameValue] ->
+  Maybe [Yudhishthira.TagNameValueExpiry] ->
+  Maybe [Yudhishthira.TagNameValueExpiry] ->
   Yudhishthira.RunKaalChakraJobResForUser
 mkRunKaalChakraJobResForUser userId userDataValue userOldTags userUpdatedTags = do
   Yudhishthira.RunKaalChakraJobResForUser {..}
@@ -341,10 +379,11 @@ type TagsMap = M.Map Yudhishthira.TagName
 updateUserTagValues ::
   Id Yudhishthira.User ->
   [(DNT.NammaTag, Yudhishthira.TagValue)] ->
-  Maybe [Yudhishthira.TagNameValue] ->
-  Either Text ([Yudhishthira.TagNameValue], [ActionData])
-updateUserTagValues userId _ Nothing = Left $ "User with userId: " <> show userId <> " did not found; skipping."
-updateUserTagValues userId updatedTags (Just oldTagsText) = do
+  Maybe [Yudhishthira.TagNameValueExpiry] ->
+  UTCTime ->
+  Either Text ([Yudhishthira.TagNameValueExpiry], [ActionData])
+updateUserTagValues userId _ Nothing _ = Left $ "User with userId: " <> show userId <> " did not found; skipping."
+updateUserTagValues userId updatedTags (Just oldTagsText) now = do
   oldTagsMap <- (M.fromList <$>) $
     forM oldTagsText $ \oldTagText -> do
       case parseTagName oldTagText of
@@ -354,13 +393,13 @@ updateUserTagValues userId updatedTags (Just oldTagsText) = do
   Right (snd <$> M.toList updTagsMap, snd <$> M.toList actionDataMap)
   where
     foldFunc ::
-      (TagsMap Yudhishthira.TagNameValue, TagsMap ActionData) ->
+      (TagsMap Yudhishthira.TagNameValueExpiry, TagsMap ActionData) ->
       (DNT.NammaTag, Yudhishthira.TagValue) ->
-      (TagsMap Yudhishthira.TagNameValue, TagsMap ActionData)
+      (TagsMap Yudhishthira.TagNameValueExpiry, TagsMap ActionData)
     foldFunc (tagNameValueMapOld, actionDataMapOld) (tag, tagValueNew) = do
       let tagName = Yudhishthira.TagName tag.name
           tagNameValueOld = M.lookup tagName tagNameValueMapOld
-          tagNameValueNew = showTag tagName tagValueNew
+          tagNameValueNew = mkTagNameValueExpiry tagName tagValueNew tag.validity now
           tagNameValueMapNew = M.insert tagName tagNameValueNew tagNameValueMapOld
           actionData = ActionData {tag, tagValueNew, tagNameValueNew, tagNameValueOld}
           actionDataMapNew = M.insert tagName actionData actionDataMapOld
@@ -369,28 +408,22 @@ updateUserTagValues userId updatedTags (Just oldTagsText) = do
 data ActionData = ActionData
   { tag :: DNT.NammaTag,
     tagValueNew :: Yudhishthira.TagValue,
-    tagNameValueNew :: Yudhishthira.TagNameValue,
-    tagNameValueOld :: Maybe Yudhishthira.TagNameValue -- only if it was present earlier
+    tagNameValueNew :: Yudhishthira.TagNameValueExpiry,
+    tagNameValueOld :: Maybe Yudhishthira.TagNameValueExpiry -- only if it was present earlier
   }
   deriving (Show)
 
-parseTagName :: Yudhishthira.TagNameValue -> Maybe Yudhishthira.TagName
-parseTagName (Yudhishthira.TagNameValue txt) = case T.splitOn "#" txt of
+-- TODO move to utils
+parseTagName :: Yudhishthira.TagNameValueExpiry -> Maybe Yudhishthira.TagName
+parseTagName (Yudhishthira.TagNameValueExpiry txt) = case T.splitOn "#" txt of
   (tagName : _) -> Just (Yudhishthira.TagName tagName)
   _ -> Nothing
 
-showTag ::
-  Yudhishthira.TagName ->
-  Yudhishthira.TagValue ->
-  Yudhishthira.TagNameValue
-showTag (Yudhishthira.TagName tagName) (Yudhishthira.TextValue tagValueText) = Yudhishthira.TagNameValue $ tagName <> "#" <> tagValueText
-showTag (Yudhishthira.TagName tagName) (Yudhishthira.NumberValue tagValueDouble) = Yudhishthira.TagNameValue $ tagName <> "#" <> show tagValueDouble
-showTag (Yudhishthira.TagName tagName) (Yudhishthira.ArrayValue tagValueArray) = Yudhishthira.TagNameValue $ tagName <> "#" <> T.intercalate "&" tagValueArray
-
+-- TODO move to utils
 -- inverse conversion for showTag
-parseTagValueFromText :: DNT.NammaTag -> Yudhishthira.TagNameValue -> Either Text Yudhishthira.TagValue
-parseTagValueFromText tag (Yudhishthira.TagNameValue txt) = case T.splitOn "#" txt of
-  [_, tagValue] -> do
+parseTagValueFromText :: DNT.NammaTag -> Yudhishthira.TagNameValueExpiry -> Either Text Yudhishthira.TagValue
+parseTagValueFromText tag (Yudhishthira.TagNameValueExpiry txt) = case T.splitOn "#" txt of
+  _tagName : tagValue : _xs -> do
     case tag.possibleValues of
       Yudhishthira.Range _d1 _d2 -> do
         tagDouble <- mapLeft ("Couldn't parse double value: " <>) $ readEither @Text @Double tagValue
@@ -399,7 +432,13 @@ parseTagValueFromText tag (Yudhishthira.TagNameValue txt) = case T.splitOn "#" t
         [tagValueText] -> pure $ Yudhishthira.TextValue tagValueText -- we can't separate text value from array containting one item
         [] -> Left "Tag value should not be empty"
         tagValueArray -> pure $ Yudhishthira.ArrayValue tagValueArray
-  _ -> Left "Tag should have format tagName#tagValue"
+  _ -> Left "Tag should have format tagName#tagValue of tagName#tagValue#expiredAt"
+
+-- TODO move to utils
+parseTagExpiredAt :: Yudhishthira.TagNameValueExpiry -> Maybe UTCTime
+parseTagExpiredAt (Yudhishthira.TagNameValueExpiry txt) = case T.splitOn "#" txt of
+  _tagName : _tagValue : expiredAt : _xs -> readMaybe @UTCTime $ T.unpack expiredAt
+  _xs -> Nothing
 
 parseTagValue :: A.Value -> Yudhishthira.TagValues -> Maybe Yudhishthira.TagValue
 parseTagValue (A.String txt) possibleValues = case possibleValues of

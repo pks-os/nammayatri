@@ -14,6 +14,7 @@ import Kernel.Types.Error
 import qualified Kernel.Types.Id
 import Kernel.Utils.Common (CacheFlow, EsqDBFlow, MonadFlow, fromMaybeM, getCurrentTime)
 import qualified Kernel.Utils.Version
+import qualified Lib.Yudhishthira.Types
 import qualified Storage.Beam.Person as Beam
 import qualified Storage.Queries.Transformers.Person
 
@@ -40,7 +41,7 @@ instance FromTType' Beam.Person Domain.Types.Person.Person where
             clientSdkVersion = clientSdkVersion',
             createdAt = createdAt,
             currentCity = Kernel.Prelude.snd updateMerchantOpIdAndCity,
-            customerNammaTags = customerNammaTags,
+            customerNammaTags = (fmap Lib.Yudhishthira.Types.TagNameValueExpiry <$>) customerNammaTags,
             customerPaymentId = customerPaymentId,
             customerReferralCode = customerReferralCode,
             defaultPaymentMethodId = defaultPaymentMethodId,
@@ -115,7 +116,7 @@ instance ToTType' Beam.Person Domain.Types.Person.Person where
         Beam.clientSdkVersion = fmap Kernel.Utils.Version.versionToText clientSdkVersion,
         Beam.createdAt = createdAt,
         Beam.currentCity = Kernel.Prelude.Just currentCity,
-        Beam.customerNammaTags = customerNammaTags,
+        Beam.customerNammaTags = (fmap (.getTagNameValueExpiry) <$>) customerNammaTags,
         Beam.customerPaymentId = customerPaymentId,
         Beam.customerReferralCode = customerReferralCode,
         Beam.defaultPaymentMethodId = defaultPaymentMethodId,
